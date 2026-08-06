@@ -1,0 +1,214 @@
+{% extends 'yakuza/base.html' %}
+{% load static %}
+
+{% block title %}Customers{% endblock %}
+{% block page_title %}Customer & Sales History{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/customer.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="customer-container">
+    <!-- Filter Card -->
+    <div class="customer-card filter-card">
+        <div class="card-header-custom">
+            <h3>Customer Filters</h3>
+        </div>
+        <div class="filter-grid">
+            <div class="filter-item">
+                <label>Search</label>
+                <input type="text" id="searchInput" class="form-control" placeholder="Search customer...">
+            </div>
+            <div class="filter-item">
+                <label>Date From</label>
+                <input type="date" id="dateFrom" class="form-control">
+            </div>
+            <div class="filter-item">
+                <label>Date To</label>
+                <input type="date" id="dateTo" class="form-control">
+            </div>
+            <div class="filter-item">
+                <label>Model</label>
+                <select id="modelSelect" class="form-control">
+                    <option value="">All Models</option>
+                    <option value="Model X">Model X</option>
+                    <option value="Model Y">Model Y</option>
+                </select>
+            </div>
+            <div class="filter-item">
+                <label>Branch</label>
+                <select id="branchSelect" class="form-control">
+                    <option value="">All Branches</option>
+                    <option value="Main Branch">Main Branch</option>
+                    <option value="Downtown Branch">Downtown Branch</option>
+                </select>
+            </div>
+            <div class="filter-item">
+                <label>Payment Method</label>
+                <select id="paymentMethodSelect" class="form-control">
+                    <option value="">All Methods</option>
+                    <option value="Cash">Cash</option>
+                    <option value="UPI">UPI</option>
+                    <option value="EMI">EMI</option>
+                    <option value="Credit Card">Credit Card</option>
+                </select>
+            </div>
+        </div>
+        <div class="filter-actions">
+            <button type="button" id="resetBtn" class="btn btn-secondary">Reset</button>
+        </div>
+    </div>
+
+    <!-- Customer Table Card -->
+    <div class="customer-card table-card">
+        <div class="card-header-custom">
+            <h3>Customer Directory</h3>
+        </div>
+        <div class="table-responsive">
+            <table class="customer-table" id="customerTable">
+                <thead>
+                    <tr>
+                        <th>Customer Name</th>
+                        <th>Phone</th>
+                        <th>Email</th>
+                        <th>Model</th>
+                        <th>Branch</th>
+                        <th>Payment</th>
+                        <th>Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for customer in customers %}
+                    <tr data-customer-name="{{ customer.name }}" 
+                        data-phone="{{ customer.phone }}" 
+                        data-email="{{ customer.email|default:'' }}" 
+                        data-model="{{ customer.model_name }}" 
+                        data-branch="{{ customer.branch_name }}" 
+                        data-payment="{{ customer.payment_mode }}" 
+                        data-price="{{ customer.price }}"
+                        data-date="{{ customer.created_at|date:'Y-m-d' }}">
+                        
+                        <td>{{ customer.name }}</td>
+                        <td>{{ customer.phone }}</td>
+                        <td>{{ customer.email|default:"-" }}</td>
+                        <td>{{ customer.model_name }}</td>
+                        <td>{{ customer.branch_name }}</td>
+                        <td>{{ customer.payment_mode }}</td>
+                        <td>{{ customer.created_at|date:'Y-m-d' }}</td>
+                        <td>
+                            <button class="btn btn-primary btn-sm view-invoice-btn" data-id="{{ customer.invoice_no }}">View</button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" style="text-align: center;">No customers in current database.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Sales Invoice Popup Modal -->
+<div id="invoiceModal" class="sales-modal-overlay" style="display: none;">
+    <div class="sales-modal-container">
+        <div class="sales-modal-header">
+            <h3>Tax Invoice</h3>
+            <button type="button" class="sales-modal-close" id="closeInvoiceModal">&times;</button>
+        </div>
+        <div class="sales-modal-body">
+            <div class="sales-invoice-paper" id="invoicePrintArea">
+                <div class="inv-header">
+                    <div class="inv-company-info">
+                        <h2>Gatistvam Electric Vehical</h2>
+                        <p>Gatistvam E-Bike, G/15, Ashta Capital, Chobari Road, Junagadh - 362001</p>
+                        <p>Mo. 8488885733</p>
+                        <p>GST NO. 24CURPK4247E1Z1</p>
+                    </div>
+                    <div class="inv-meta-info">
+                        <div class="inv-logo-badge">
+                            <img src="{% static 'images/logo.png' %}" alt="Logo" style="height: 40px;" onerror="this.style.display='none'">
+                        </div>
+                        <p><strong>Invoice No.:</strong> <span id="invNo">-</span></p>
+                        <p><strong>Date:</strong> <span id="invDate">-</span></p>
+                    </div>
+                </div>
+                <hr class="inv-divider">
+                <div class="inv-customer-section">
+                    <div class="inv-cust-row">
+                        <p><strong>Bill To:</strong> <span id="invCustName">-</span></p>
+                        <p><strong>Aadhar no:</strong> XXXX XXXX XXXX</p>
+                    </div>
+                    <div class="inv-cust-row">
+                        <p><strong>Billing Address:</strong> <span id="invBranch">-</span></p>
+                    </div>
+                    <div class="inv-cust-row">
+                        <p><strong>Contact No.:</strong> <span id="invCustPhone">-</span></p>
+                    </div>
+                </div>
+                <div class="inv-table-wrapper">
+                    <table class="inv-items-table">
+                        <thead>
+                            <tr>
+                                <th>Sr. No.</th>
+                                <th>Item Name</th>
+                                <th>HSN/SAC</th>
+                                <th>Quantity</th>
+                                <th>Unit</th>
+                                <th>Price/Unit</th>
+                                <th>GST</th>
+                                <th>Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody id="invItemsBody">
+                            <tr>
+                                <td>1</td>
+                                <td id="invModelName">-</td>
+                                <td>87116020</td>
+                                <td>1</td>
+                                <td>NOS</td>
+                                <td id="invPriceUnit">0.00</td>
+                                <td id="invGstUnit">0.00</td>
+                                <td id="invTotalAmount">0.00</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="inv-payment-summary-flex" style="display: flex; justify-content: space-between; margin-top: 15px; align-items: flex-start;">
+                    <div class="inv-payment-box" style="border: 1px solid #4b5563; width: 45%;">
+                        <div style="background-color: #6b7280; color: white; padding: 4px 8px; font-weight: bold; font-size: 11px;">PAYMENT</div>
+                        <div style="padding: 8px; font-size: 11px;" id="invPaymentMode">-</div>
+                    </div>
+                    <div class="inv-totals-section" style="width: 45%;">
+                        <div class="inv-total-row">
+                            <span>Sub Total:</span>
+                            <span id="invSubtotal" style="color: black; padding: 1px 6px;">0.00</span>
+                        </div>
+                        <div class="inv-total-row">
+                            <span>SGST (2.5%):</span>
+                            <span id="invSgst" style="color: black; padding: 1px 6px;">0.00</span>
+                        </div>
+                        <div class="inv-total-row">
+                            <span>CGST (2.5%):</span>
+                            <span id="invCgst" style="color: black; padding: 1px 6px;">0.00</span>
+                        </div>
+                        <div class="inv-total-row grand-total" style="margin-top: 5px;">
+                            <span>Final Amount:</span>
+                            <span id="invGrandTotal" style="color: black; padding: 2px 8px; font-size: 13px;">0.00</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="sales-modal-footer">
+            <button type="button" class="sales-btn sales-btn-whatsapp" id="shareWhatsAppBtn">Share on WhatsApp</button>
+            <button type="button" class="sales-btn sales-btn-print" id="printInvoiceBtn">Print Invoice</button>
+        </div>
+    </div>
+</div>
+
+<script src="{% static 'js/customer.js' %}"></script>
+{% endblock %}

@@ -1,0 +1,226 @@
+{% extends 'yakuza/base.html' %}
+{% load static %}
+
+{% block title %}Dashboard - GATISTVAM E-BIKE{% endblock %}
+
+{% block page_title %}Dashboard{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+{% endblock %}
+
+{% block content %}
+<input type="date" id="hiddenDateInput" style="display:none;" onchange="updateSelectedDate(this.value)">
+
+<div class="dashboard-body">
+
+    <!-- Top Row: 5 Metric Cards -->
+    <div class="metrics-grid">
+        <!-- Card 1: Total Vehicles -->
+        <div class="metric-card">
+            <div class="metric-header">
+                <div class="metric-icon blue"><i class="fas fa-motorcycle"></i></div>
+                <span class="metric-title">Total Vehicles</span>
+            </div>
+            <div class="metric-value">{{ total_vehicles|default:0 }}</div>
+            <div class="metric-footer">
+                <span class="trend-badge positive"><i class="fas fa-arrow-up"></i> Live</span>
+                <span class="trend-text">in stock</span>
+            </div>
+        </div>
+
+        <!-- Card 2: Total Sales -->
+        <div class="metric-card">
+            <div class="metric-header">
+                <div class="metric-icon green"><i class="fas fa-chart-line"></i></div>
+                <span class="metric-title">Total Sales</span>
+            </div>
+            <div class="metric-value">₹ {{ total_sales|default:0 }}</div>
+            <div class="metric-footer">
+                <span class="trend-badge positive"><i class="fas fa-arrow-up"></i> Live</span>
+                <span class="trend-text">total revenue</span>
+            </div>
+        </div>
+
+        <!-- Card 3: Total Purchase -->
+        <div class="metric-card">
+            <div class="metric-header">
+                <div class="metric-icon orange"><i class="fas fa-shopping-cart"></i></div>
+                <span class="metric-title">Total Purchase</span>
+            </div>
+            <div class="metric-value">₹ {{ total_purchases|default:0 }}</div>
+            <div class="metric-footer">
+                <span class="trend-badge positive"><i class="fas fa-arrow-up"></i> Live</span>
+                <span class="trend-text">total expense</span>
+            </div>
+        </div>
+
+        <!-- Card 4: Total Profit -->
+        <div class="metric-card">
+            <div class="metric-header">
+                <div class="metric-icon purple"><i class="fas fa-rupee-sign"></i></div>
+                <span class="metric-title">Total Profit</span>
+            </div>
+            <div class="metric-value">₹ {{ total_profit|default:0 }}</div>
+            <div class="metric-footer">
+                <span class="trend-badge positive"><i class="fas fa-arrow-up"></i> Live</span>
+                <span class="trend-text">net profit</span>
+            </div>
+        </div>
+
+        <!-- Card 5: Profit Margin -->
+        <div class="metric-card">
+            <div class="metric-header">
+                <div class="metric-icon cyan"><i class="fas fa-percentage"></i></div>
+                <span class="metric-title">Profit Margin</span>
+            </div>
+            <div class="metric-value">{{ profit_margin|default:0 }}%</div>
+            <div class="metric-footer">
+                <span class="trend-badge positive"><i class="fas fa-arrow-up"></i> Live</span>
+                <span class="trend-text">margin rate</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Middle Row: Charts & Alerts -->
+    <div class="middle-grid">
+        <!-- Sales Overview Chart Box -->
+        <div class="card sales-card">
+            <div class="card-header">
+                <h3>Sales Overview</h3>
+            </div>
+            <div class="chart-container" style="position: relative; height:200px;">
+                <canvas id="salesChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Stock Overview Donut Chart -->
+        <div class="card stock-card">
+            <div class="card-header">
+                <h3>Stock Overview</h3>
+            </div>
+            <div class="donut-content">
+                <div class="donut-chart-box" style="position: relative; height:120px;">
+                    <canvas id="stockChart"></canvas>
+                    <div class="donut-center-text" style="position: absolute; top:35%; left:35%; text-align:center;">
+                        <span class="donut-total-num">{{ total_vehicles|default:0 }}</span>
+                        <span class="donut-total-label">Total</span>
+                    </div>
+                </div>
+                <div class="stock-legend">
+                    <div class="legend-item"><span class="dot blue"></span> <span class="leg-name">Available</span> <span class="leg-val">{{ available_stock }}</span></div>
+                    <div class="legend-item"><span class="dot green"></span> <span class="leg-name">Sold</span> <span class="leg-val">{{ sold_stock }}</span></div>
+                    <div class="legend-item"><span class="dot orange"></span> <span class="leg-name">Reserved</span> <span class="leg-val">{{ reserved_stock }}</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Low Stock Alert Box -->
+        <div class="card alert-card">
+            <div class="card-header">
+                <h3>Low Stock Alert</h3>
+                <a href="{% url 'yakuza:live_stock' %}" class="view-all-link">View All</a>
+            </div>
+            <div class="alert-list">
+                {% for item in low_stock_items %}
+                <div class="alert-item">
+                    <div class="alert-img-box"><i class="fas fa-motorcycle"></i></div>
+                    <div class="alert-info">
+                        <h4>{{ item.item_name|default:item.model_name }}</h4>
+                        <p>Stock: {{ item.quantity }}</p>
+                    </div>
+                    <span class="badge-low">Low</span>
+                </div>
+                {% empty %}
+                <p style="padding: 15px; text-align: center; color: #94a3b8;">No low stock alerts</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Row: Tables -->
+    <div class="bottom-grid">
+        <!-- Recent Sales Table -->
+<div class="card table-card">
+    <div class="card-header">
+        <h3>Recent Sales</h3>
+        <a href="{% url 'yakuza:sales' %}" class="view-all-link">View All</a>
+    </div>
+    <div class="table-responsive">
+        <table class="data-table">
+            <tbody>
+                {% for sale in recent_sales %}
+                <tr>
+                    <td>
+                        <div class="item-flex">
+                            <div class="tbl-scooter"><i class="fas fa-motorcycle"></i></div>
+                            <div>
+                                <h4>Invoice #{{ sale.invoice_number|default:sale.id }}</h4>
+                                <p>{{ sale.customer_name|default:sale.stock.model_name|default:"Sale Item" }}</p>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="text-right">
+                        <div class="amount-val">₹ {{ sale.grand_total|default:sale.total_price|default:0 }}</div>
+                        <span class="status-badge completed">Completed</span>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="2" style="text-align:center; padding:15px; color:#94a3b8;">No recent sales found.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+        <!-- Recent Purchases -->
+        <div class="card table-card">
+            <div class="card-header">
+                <h3>Recent Purchases</h3>
+                <a href="{% url 'yakuza:purchase_history' %}" class="view-all-link">View All</a>
+            </div>
+            <div class="table-responsive">
+                <table class="data-table">
+                    <tbody>
+                        {% for purchase in recent_purchases %}
+                        <tr>
+                            <td>
+                                <div class="item-flex">
+                                    <div class="tbl-bag"><i class="fas fa-shopping-bag"></i></div>
+                                    <div>
+                                        <h4>{{ purchase.invoice_number|default:purchase.purchase_number }}</h4>
+                                        <p>{{ purchase.supplier.supplier_name|default:purchase.supplier.name|default:"Supplier" }}</p>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="text-right">
+                                <div class="amount-val">₹ {{ purchase.total_amount|default:purchase.grand_total|default:0 }}</div>
+                                <span class="status-badge completed">Completed</span>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="2" style="text-align:center; padding:15px; color:#94a3b8;">No recent purchases found.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+{{ available_stock|default:0|json_script:"available-stock-data" }}
+{{ sold_stock|default:0|json_script:"sold-stock-data" }}
+{{ reserved_stock|default:0|json_script:"reserved-stock-data" }}
+{{ other_stock|default:0|json_script:"other-stock-data" }}
+
+<script>
+    window.dashboardData = {
+        available: JSON.parse(document.getElementById('available-stock-data').textContent),
+        sold: JSON.parse(document.getElementById('sold-stock-data').textContent),
+        reserved: JSON.parse(document.getElementById('reserved-stock-data').textContent),
+        other: JSON.parse(document.getElementById('other-stock-data').textContent)
+    };
+</script>
+
+<script src="{% static 'js/dashboard.js' %}"></script>
+{% endblock %}

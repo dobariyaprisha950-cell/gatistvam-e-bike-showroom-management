@@ -295,7 +295,7 @@ class Notification(models.Model):
 
 
 class Settings(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True) # આ લાઇન ઉમેરો
+    user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True) 
     company_name = models.CharField(max_length=150, default="Yakuza EV Showroom")
     company_address = models.TextField(blank=True, null=True)
     company_phone = models.CharField(max_length=15, blank=True, null=True)
@@ -356,6 +356,7 @@ class NotificationPreference(models.Model):
 
 
 class InvoiceSetting(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     branch = models.OneToOneField(Branch, on_delete=models.CASCADE, related_name='invoice_setting', null=True, blank=True)
     header_text = models.TextField(blank=True, null=True)
     footer_text = models.TextField(blank=True, null=True)

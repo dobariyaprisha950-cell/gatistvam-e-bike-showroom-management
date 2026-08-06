@@ -1,0 +1,292 @@
+{% extends 'yakuza/base.html' %}
+{% load static %}
+
+{% block title %}Expenses - Gatistvam E-Bike{% endblock %}
+
+{% block page_title %}Expenses{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/expenses.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="expenses-container">
+
+    <!-- ================= MONTHLY SUMMARY BAR (SOFT COLOR) ================= -->
+    <div class="expense-summary-card">
+        <div class="summary-left">
+            <div class="summary-icon">
+                <i class="fas fa-wallet"></i>
+            </div>
+            <div class="summary-details">
+                <span class="summary-label">Total Expense for <strong id="summaryMonthName">July 2026</strong></span>
+                <h3 class="summary-amount" id="summaryTotalAmount">₹0.00</h3>
+            </div>
+        </div>
+        <div class="summary-right">
+            <div class="summary-badge daily-badge">
+                <span>Daily: <strong id="summaryDailyAmount">₹0.00</strong></span>
+            </div>
+            <div class="summary-badge monthly-badge">
+                <span>Monthly: <strong id="summaryMonthlyAmount">₹0.00</strong></span>
+            </div>
+            <div class="month-selector-wrapper">
+                <select id="summaryMonthFilter" class="summary-month-select" aria-label="Select summary month">
+                    <!-- Populated dynamically by JS -->
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= TOP FILTER CARD (NO HEADER & NO EXPORT) ================= -->
+    <div class="filter-card">
+        <div class="filter-grid">
+            <div class="filter-field search-field">
+                <label for="searchInput">Search</label>
+                <div class="input-with-icon">
+                    <i class="fas fa-search icon-left"></i>
+                    <input type="text" id="searchInput" placeholder="Search by name, date, month, amount...">
+                </div>
+            </div>
+
+            <div class="filter-field">
+                <label for="fromDateInput">From Date</label>
+                <input type="date" id="fromDateInput">
+            </div>
+
+            <div class="filter-field">
+                <label for="toDateInput">To Date</label>
+                <input type="date" id="toDateInput">
+            </div>
+
+            <div class="filter-actions">
+                <button type="button" id="resetFilterBtn" class="btn btn-outline">
+                    <i class="fas fa-undo"></i> Reset
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= EXPENSE ENTRY CARD (SINGLE LINE ROW, NO HEADER) ================= -->
+    <div class="entry-card">
+        <form id="expenseForm" autocomplete="off" method="POST" action="{% url 'yakuza:expenses' %}">
+            {% csrf_token %}
+            <div class="entry-single-row">
+                <!-- Expense Name -->
+                <div class="form-group name-group">
+                    <label for="expenseNameInput">Expense Name <span class="required">*</span></label>
+                    <input type="text" name="expense_name" id="expenseNameInput" list="expenseExamples" placeholder="e.g. Office Rent, Tea..." required>
+                    <datalist id="expenseExamples">
+                        <option value="Office Rent">
+                        <option value="Tea Expense">
+                        <option value="Salary">
+                        <option value="Electricity Bill">
+                        <option value="Internet Bill">
+                        <option value="Courier">
+                        <option value="Petrol">
+                        <option value="Repair">
+                        <option value="Misc Expense">
+                    </datalist>
+                </div>
+
+                <!-- Amount -->
+                <div class="form-group amount-group">
+                    <label for="expenseAmountInput">Amount <span class="required">*</span></label>
+                    <div class="currency-input-group">
+                        <span class="currency-symbol">₹</span>
+                        <input type="number" name="amount" id="expenseAmountInput" min="0" step="0.01" placeholder="0.00" required>
+                    </div>
+                </div>
+
+                <!-- Expense Type -->
+                <div class="form-group type-group">
+                    <label>Expense Type <span class="required">*</span></label>
+                    <div class="radio-pill-group">
+                        <label class="radio-pill">
+                            <input type="radio" name="expense_type" value="Daily Expense" checked>
+                            <span class="pill-text"><i class="fas fa-calendar-day"></i> Daily</span>
+                        </label>
+                        <label class="radio-pill">
+                            <input type="radio" name="expense_type" value="Monthly Expense">
+                            <span class="pill-text"><i class="fas fa-calendar-alt"></i> Monthly</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Expense Date (Daily) -->
+                <div class="form-group date-group" id="dateFieldContainer">
+                    <label for="expenseDateInput">Expense Date <span class="required">*</span></label>
+                    <input type="date" name="expense_date" id="expenseDateInput">
+                </div>
+
+                <!-- Month Dropdown (Monthly) -->
+                <div class="form-group date-group hidden" id="monthFieldContainer">
+                    <label for="expenseMonthInput">Month <span class="required">*</span></label>
+                    <select name="expense_month" id="expenseMonthInput">
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+
+                <!-- Save Button -->
+                <div class="form-group submit-group">
+                    <label>&nbsp;</label>
+                    <button type="submit" class="btn btn-primary btn-save">
+                        <i class="fas fa-check-circle"></i> Save
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- ================= HISTORY TABLE ================= -->
+    <div class="table-card">
+        <div class="card-header-main table-card-header">
+            <div class="header-title">
+                <i class="fas fa-list-alt"></i>
+                <span>Expense History</span>
+            </div>
+            <div class="table-stats">
+                <span class="record-badge">Showing <strong id="visibleRecordCount">0</strong> Records</span>
+                <span class="total-badge">Total: <strong id="visibleTotalAmount">₹0.00</strong></span>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="expense-table" id="expenseTable">
+                <thead>
+                    <tr>
+                        <th class="col-name">Expense Name</th>
+                        <th class="col-type">Expense Type</th>
+                        <th class="col-date">Date / Month</th>
+                        <th class="col-amount">Amount</th>
+                        <th class="col-action">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="expenseTableBody">
+                    <!-- Populated dynamically by JS -->
+                </tbody>
+            </table>
+        </div>
+        <div id="noDataMessage" class="no-data-box hidden">
+            <i class="fas fa-inbox"></i>
+            <p>No expenses found matching the criteria.</p>
+        </div>
+    </div>
+
+</div>
+
+<!-- ================= VIEW POPUP MODAL ================= -->
+<div class="modal-overlay hidden" id="viewModal">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h4><i class="fas fa-eye"></i> Expense Details</h4>
+            <button class="modal-close-btn" onclick="closeModal('viewModal')" aria-label="Close modal">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="detail-row">
+                <span class="detail-label">Expense Name:</span>
+                <span class="detail-value" id="viewName">-</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Expense Type:</span>
+                <span class="detail-value" id="viewType">-</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Date / Month:</span>
+                <span class="detail-value" id="viewDateMonth">-</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Amount:</span>
+                <span class="detail-value amount-highlight" id="viewAmount">₹0.00</span>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('viewModal')">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- ================= EDIT POPUP MODAL ================= -->
+<div class="modal-overlay hidden" id="editModal">
+    <div class="modal-card edit-modal-card">
+        <div class="modal-header">
+            <h4><i class="fas fa-edit"></i> Edit Expense</h4>
+            <button class="modal-close-btn" onclick="closeModal('editModal')" aria-label="Close modal">&times;</button>
+        </div>
+        <form id="editExpenseForm">
+            <input type="hidden" id="editExpenseId">
+            <div class="modal-body">
+                <div class="form-group mb-3">
+                    <label for="editNameInput">Expense Name <span class="required">*</span></label>
+                    <input type="text" id="editNameInput" list="expenseExamples" required>
+                </div>
+
+                <div class="form-group mb-3">
+                    <label for="editAmountInput">Amount <span class="required">*</span></label>
+                    <div class="currency-input-group">
+                        <span class="currency-symbol">₹</span>
+                        <input type="number" id="editAmountInput" min="0" step="0.01" required>
+                    </div>
+                </div>
+
+                <div class="form-group mb-3">
+                    <label>Expense Type <span class="required">*</span></label>
+                    <div class="radio-pill-group">
+                        <label class="radio-pill">
+                            <input type="radio" name="editExpenseType" value="Daily Expense" checked>
+                            <span class="pill-text"><i class="fas fa-calendar-day"></i> Daily</span>
+                        </label>
+                        <label class="radio-pill">
+                            <input type="radio" name="editExpenseType" value="Monthly Expense">
+                            <span class="pill-text"><i class="fas fa-calendar-alt"></i> Monthly</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group mb-3" id="editDateFieldContainer">
+                    <label for="editDateInput">Expense Date <span class="required">*</span></label>
+                    <input type="date" id="editDateInput">
+                </div>
+
+                <div class="form-group mb-3 hidden" id="editMonthFieldContainer">
+                    <label for="editMonthInput">Month <span class="required">*</span></label>
+                    <select id="editMonthInput"></select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal('editModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Update Expense</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ================= DELETE CONFIRMATION POPUP ================= -->
+<div class="modal-overlay hidden" id="deleteModal">
+    <div class="modal-card delete-modal-card">
+        <div class="modal-header delete-header">
+            <h4><i class="fas fa-exclamation-triangle"></i> Confirm Deletion</h4>
+            <button class="modal-close-btn" onclick="closeModal('deleteModal')" aria-label="Close modal">&times;</button>
+        </div>
+        <div class="modal-body text-center">
+            <div class="delete-icon-wrapper">
+                <i class="fas fa-trash-alt"></i>
+            </div>
+            <h3 class="delete-confirm-title">Delete Expense?</h3>
+            <p class="delete-confirm-text">
+                Are you sure you want to delete <strong id="deleteExpenseName"></strong>? This action cannot be undone.
+            </p>
+            <input type="hidden" id="deleteTargetId">
+        </div>
+        <div class="modal-footer justify-center">
+            <button class="btn btn-outline" onclick="closeModal('deleteModal')">Cancel</button>
+            <button class="btn btn-danger" id="confirmDeleteBtn">Delete</button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/expenses.js' %}"></script>
+{% endblock %}

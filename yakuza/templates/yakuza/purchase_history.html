@@ -1,0 +1,71 @@
+{% extends 'yakuza/base.html' %}
+{% load static %}
+
+{% block title %}Purchase History - GATISTVAM E-BIKE{% endblock %}
+
+{% block page_title %}
+    <h2>Purchase History</h2>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header" style="justify-content: space-between;">
+        <h2 class="card-title">ALL PURCHASES</h2>
+        <a href="{% url 'yakuza:purchase' %}" class="btn-primary" style="text-decoration:none; padding: 8px 16px; font-size: 13px; border-radius: 8px;">+ New Purchase</a>
+    </div>
+
+    <!-- Filter Form -->
+    <form method="GET" action="" style="margin-bottom: 15px;">
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <input type="text" name="search" placeholder="Search Invoice / Supplier..." value="{{ request.GET.search|default:'' }}" style="height:38px; font-size:12px; padding:0 12px; border-radius:8px; border:1px solid var(--border-color); width:250px;">
+            
+            <input type="date" name="from_date" value="{{ request.GET.from_date|default:'' }}" style="height:38px; font-size:12px; padding:0 8px; border-radius:8px; border:1px solid var(--border-color);">
+            <input type="date" name="to_date" value="{{ request.GET.to_date|default:'' }}" style="height:38px; font-size:12px; padding:0 8px; border-radius:8px; border:1px solid var(--border-color);">
+
+            <button type="submit" class="btn-primary" style="height:38px; padding:0 16px; font-size:12px; border-radius:8px;">Filter</button>
+            <a href="{% url 'yakuza:purchase_history' %}" class="btn-secondary" style="height:38px; padding:8px 16px; font-size:12px; border-radius:8px; text-decoration:none; display:inline-block; line-height:20px;">Reset</a>
+        </div>
+    </form>
+
+    <div class="table-responsive">
+        <table class="vehicle-table">
+            <thead>
+                <tr>
+                    <th>Purchase Number</th>
+                    <th>Purchase Date</th>
+                    <th>Supplier</th>
+                    <th>Branch</th>
+                    <th>Invoice Number</th>
+                    <th>Total Qty</th>
+                    <th>Created Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="historyTableBody">
+                {% for purchase in purchases %}
+                <tr data-invoice="{{ purchase.invoice_number }}" 
+                    data-date="{{ purchase.purchase_date|date:'Y-m-d' }}" 
+                    data-supplier="{{ purchase.supplier.supplier_name }}" 
+                    data-total="{{ purchase.grand_total|default:0 }}">
+                    <td><strong>{{ purchase.purchase_number }}</strong></td>
+                    <td>{{ purchase.purchase_date|date:"d-m-Y" }}</td>
+                    <td>{{ purchase.supplier.supplier_name }}</td>
+                    <td>{{ purchase.branch.name }}</td>
+                    <td>{{ purchase.invoice_number }}</td>
+                    <td><span class="badge">{{ purchase.total_quantity }} NOS</span></td>
+                    <td>{{ purchase.created_at|date:"d-m-Y H:i" }}</td>
+                    <td>
+                        <a href="{% url 'yakuza:purchase-detail' purchase.id %}" class="btn-manage" style="text-decoration:none; display:inline-block; margin-right:4px;">View</a>
+                        <a href="{% url 'yakuza:purchase-delete' purchase.id %}" class="btn-manage" style="text-decoration:none; color:var(--danger-color); border-color:var(--danger-color); display:inline-block;">Delete</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 20px;">No purchase records found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

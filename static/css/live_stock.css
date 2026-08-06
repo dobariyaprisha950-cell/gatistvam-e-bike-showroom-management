@@ -1,0 +1,340 @@
+.live-stock-wrapper {
+    padding: 24px;
+    background-color: #f8fafc;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+/* Header Alignment સેટ કર્યું - Height વધારે નહીં થાય */
+.live-stock-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center; /* flex-end માંથી બદલીને center કર્યું */
+    background: #ffffff;
+    padding: 10px 18px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e2e8f0;
+    margin-bottom: 24px;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.live-stock-filters {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    flex-grow: 1;
+}
+
+.live-stock-filter-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 180px;
+    flex-grow: 1;
+}
+
+.live-stock-filter-item.search-item {
+    flex-grow: 2;
+    min-width: 250px;
+}
+
+.live-stock-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+}
+
+.live-stock-select-wrap {
+    position: relative;
+    width: 100%;
+}
+
+.live-stock-select {
+    width: 100%;
+    height: 40px; /* 44px માંથી 40px કર્યું */
+    padding: 0 36px 0 16px;
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #0f172a;
+    outline: none;
+    appearance: none;
+    cursor: pointer;
+}
+
+.live-stock-select:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.select-arrow-icon {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 11px;
+    color: #64748b;
+    pointer-events: none;
+}
+
+.live-stock-search-wrap {
+    position: relative;
+    width: 100%;
+}
+
+.live-stock-search-wrap i {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #64748b;
+    font-size: 14px;
+}
+
+.live-stock-search-input {
+    width: 100%;
+    height: 40px; /* 44px માંથી 40px કર્યું */
+    padding: 0 16px 0 44px;
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    font-size: 13px;
+    color: #0f172a;
+    outline: none;
+}
+
+.live-stock-search-input:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.live-stock-add-btn {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    color: #ffffff;
+    border: none;
+    height: 40px; /* 44px માંથી 40px કર્યું */
+    padding: 0 20px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+    white-space: nowrap;
+    margin-top: 18px; /* ડ્રોપડાઉનના Label સાથે લાઈનમાં લાવવા માટે */
+}
+
+.live-stock-add-btn:hover {
+    background: linear-gradient(135deg, #1d4ed8 100%, #1e40af 100%);
+}
+
+.live-stock-container {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+}
+
+.live-stock-header-row {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    padding: 16px 24px;
+    gap: 16px;
+    border-bottom: 1px solid #e2e8f0;
+    background-color: #ffffff;
+}
+
+.lh-col {
+    font-size: 13px;
+    font-weight: 600;
+    color: #0f172a;
+    text-align: left;
+}
+
+.live-stock-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.vehicle-row {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    align-items: center;
+    padding: 16px 24px;
+    gap: 16px;
+    border-bottom: 1px solid #e2e8f0;
+    transition: background-color 0.2s;
+}
+
+.vehicle-row:last-child {
+    border-bottom: none;
+}
+
+.vehicle-row:hover {
+    background-color: #f8fafc;
+}
+
+.vehicle-col {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+.vehicle-image-name-col {
+    gap: 16px;
+}
+
+.vehicle-image {
+    width: 45px;
+    height: 45px;
+    object-fit: contain;
+    background-color: #f1f5f9;
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #e2e8f0;
+    flex-shrink: 0;
+}
+
+.vehicle-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.vehicle-name-text, .vehicle-model-text, .vehicle-price-text, .color-text {
+    font-size: 13px;
+    font-weight: 500;
+    color: #0f172a;
+}
+
+.vehicle-price-text {
+    font-weight: 600;
+}
+
+.vehicle-color-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.color-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.vehicle-status-badge {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.vehicle-status-badge.available {
+    background-color: #dcfce7;
+    color: #15803d;
+}
+
+.vehicle-status-badge.reserved {
+    background-color: #fef9c3;
+    color: #a16207;
+}
+
+.vehicle-status-badge.out-of-stock,
+.vehicle-status-badge.sold {
+    background-color: #fee2e2;
+    color: #b91c1c;
+}
+
+.status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.available .status-dot { background-color: #15803d; }
+.reserved .status-dot { background-color: #a16207; }
+.out-of-stock .status-dot, .sold .status-dot { background-color: #b91c1c; }
+
+.vehicle-actions-col {
+    display: flex;
+    gap: 8px;
+}
+
+.action-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    background-color: #ffffff;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.view-btn:hover {
+    background-color: #eff6ff;
+    color: #2563eb;
+    border-color: #bfdbfe;
+}
+
+.edit-btn:hover {
+    background-color: #fef9c3;
+    color: #a16207;
+    border-color: #fde047;
+}
+
+.delete-btn:hover {
+    background-color: #fee2e2;
+    color: #b91c1c;
+    border-color: #fecaca;
+}
+
+/* ડાબી બાજુનું Alignment સરખું કર્યું */
+.vehicle-row .vehicle-col:first-child,
+.live-stock-header-row .lh-col:first-child {
+    display: flex;
+    justify-content: flex-start;
+    text-align: left;
+}
+
+@media (max-width: 992px) {
+    .live-stock-header-row {
+        display: none;
+    }
+    .vehicle-row {
+        grid-template-columns: 1fr;
+        gap: 12px;
+        padding: 20px;
+    }
+    .vehicle-col {
+        justify-content: space-between;
+    }
+    .vehicle-image-name-col {
+        justify-content: flex-start;
+    }
+    .live-stock-add-btn {
+        margin-top: 0;
+        width: 100%;
+        justify-content: center;
+    }
+}

@@ -1,0 +1,438 @@
+{% extends "yakuza/base.html" %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/purchase.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="purchase-page-wrapper">
+    <form id="purchaseForm" method="POST" action="{% url 'yakuza:purchase' %}" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="hidden" name="vehicle_items_json" id="id_vehicle_items_json" value="[]">
+
+        <!-- 1. PURCHASE INFORMATION CARD -->
+        <div class="erp-card">
+            <div class="card-header-bar">
+                <div class="card-title-group">
+                    <svg class="header-svg-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                    <h2>Purchase Information</h2>
+                </div>
+            </div>
+
+            <div class="card-content-body">
+                <div class="purchase-info-layout">
+                    <!-- Left: Upload Section -->
+                    <div class="photo-upload-container">
+                        <label class="field-label">Invoice Photo</label>
+                        <input type="file" id="id_invoice_photo" name="invoice_photo" accept="image/*" class="d-none">
+                        
+                        <div class="upload-dropzone-box" id="dropzoneBox">
+                            <div class="upload-icon-circle">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                            </div>
+                            <span class="upload-primary-text">Upload Invoice</span>
+                            <span class="upload-secondary-text">JPG, PNG (Max. 5MB)</span>
+                        </div>
+
+                        <!-- Uploaded File Bar -->
+                        <div class="file-attached-card d-none" id="uploadedFileBar">
+                            <div class="file-info-group">
+                                <div class="doc-icon-box">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2">
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                        <polyline points="14 2 14 8 20 8"></polyline>
+                                    </svg>
+                                </div>
+                                <div class="file-text-details">
+                                    <span class="file-name-str" id="fileNameText"></span>
+                                    <span class="file-size-str" id="fileSizeText"></span>
+                                </div>
+                            </div>
+                            <div class="file-action-buttons">
+                                <button type="button" class="btn-action-icon" id="btnViewPhoto" title="View Preview">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                </button>
+                                <a id="btnDownloadPhoto" class="btn-action-icon" download title="Download File">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                </a>
+                                <button type="button" class="btn-action-icon text-danger" id="btnDeletePhoto" title="Remove File">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Form Fields -->
+                    <div class="info-fields-grid">
+                        <div class="form-field-item">
+                            <label class="field-label">Purchase ID</label>
+                            <input type="text" id="id_purchase_number" name="purchase_number" class="form-input readonly-input" value="{{ purchase_number }}" placeholder="Auto Generated" readonly>
+                        </div>
+
+                        <div class="form-field-item">
+                            <label class="field-label">Invoice No. <span class="asterisk-red">*</span></label>
+                            <input type="text" id="id_invoice_number" name="invoice_number" class="form-input" placeholder="Enter Invoice No." required>
+                        </div>
+
+                        <div class="form-field-item">
+                            <label class="field-label">Invoice Date <span class="asterisk-red">*</span></label>
+                            <input type="date" id="id_invoice_date" name="invoice_date" class="form-input" required value="{% now 'Y-m-d' %}">
+                        </div>
+
+                        <!-- Dynamic Supplier Select with + Add Option -->
+                        <div class="form-field-item">
+                            <label class="field-label">Supplier <span class="asterisk-red">*</span></label>
+                            <select id="id_supplier" name="supplier" class="form-input" required>
+                                <option value="">Select Supplier</option>
+                                <option value="__add_new__" class="add-new-option-style">+ Add New Supplier</option>
+                                {% for supplier in suppliers %}
+                                    <option value="{{ supplier.id }}" data-contact="{{ supplier.contact_person|default:'' }}" data-phone="{{ supplier.phone|default:'' }}">
+                                        {{ supplier.supplier_name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="form-field-item">
+                            <label class="field-label">Contact Person</label>
+                            <input type="text" id="id_contact_person" class="form-input readonly-input" placeholder="Auto Filled" readonly>
+                        </div>
+
+                        <div class="form-field-item">
+                            <label class="field-label">Phone</label>
+                            <input type="text" id="id_phone" class="form-input readonly-input" placeholder="Auto Filled" readonly>
+                        </div>
+
+                        <div class="form-field-item">
+                            <label class="field-label">Payment Type <span class="asterisk-red">*</span></label>
+                            <select id="id_payment_type" name="payment_type" class="form-input" required>
+                                <option value="BANK_TRANSFER">Bank Transfer</option>
+                                <option value="CASH">Cash</option>
+                                <option value="CHEQUE">Cheque</option>
+                                <option value="UPI">UPI / Digital</option>
+                                <option value="CREDIT">Supplier Credit</option>
+                            </select>
+                        </div>
+
+                        <div class="form-field-item span-two-cols">
+                            <label class="field-label">Notes (Optional)</label>
+                            <input type="text" id="id_notes" name="notes" class="form-input" placeholder="Enter notes...">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. VEHICLE ENTRY CARD -->
+        <div class="erp-card mt-12">
+            <div class="card-header-bar">
+                <div class="card-title-group">
+                    <svg class="header-svg-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2">
+                        <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"></path>
+                        <circle cx="7" cy="17" r="2"></circle>
+                        <circle cx="17" cy="17" r="2"></circle>
+                    </svg>
+                    <h2>Vehicle Entry</h2>
+                </div>
+            </div>
+
+            <div class="card-content-body">
+                <div class="vehicle-controls-row">
+                    <!-- Dynamic Company Select -->
+                    <div class="form-field-item flex-item">
+                        <label class="field-label">Company <span class="asterisk-red">*</span></label>
+                        <select id="entry_company" class="form-input">
+                            <option value="">Select Company</option>
+                            <option value="__add_new__" class="add-new-option-style">+ Add New Company</option>
+                            {% for company in companies %}
+                                <option value="{{ company.id }}">{{ company.company_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Dynamic Model Select -->
+                    <div class="form-field-item flex-item">
+                        <label class="field-label">Model <span class="asterisk-red">*</span></label>
+                        <select id="entry_model" class="form-input" disabled>
+                            <option value="">Select Model</option>
+                            <option value="__add_new__" class="add-new-option-style">+ Add New Model</option>
+                        </select>
+                    </div>
+
+                    <div class="form-field-item flex-item">
+                        <label class="field-label">Total Quantity <span class="asterisk-red">*</span></label>
+                        <input type="number" id="entry_quantity" class="form-input" min="1" placeholder="Enter Qty">
+                    </div>
+
+                    <div class="form-field-item flex-item">
+                        <label class="field-label">Total Amount (₹) <span class="asterisk-red">*</span></label>
+                        <div class="input-icon-wrapper">
+                            <input type="number" id="entry_total_amount" class="form-input" min="0" step="0.01" placeholder="Enter Amount">
+                            <span class="inner-rupee-symbol">₹</span>
+                        </div>
+                    </div>
+
+                    <div class="form-field-item button-container">
+                        <button type="button" id="btnAddVehicleRow" class="btn-add-to-list">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            <span>Add to List</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Vehicles Table -->
+                <div class="table-responsive-wrapper mt-14">
+                    <table class="erp-data-table" id="vehicleItemsTable">
+                        <thead>
+                            <tr>
+                                <th style="width: 35px;">#</th>
+                                <th>Company</th>
+                                <th>Model</th>
+                                <th>Total Qty</th>
+                                <th>Total Amount (₹)</th>
+                                <th>Colors</th>
+                                <th style="width: 70px; text-align: center;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="vehicleItemsTbody">
+                            <tr id="emptyRow">
+                                <td colspan="7" class="empty-table-text">
+                                    No vehicles added yet. Select company, model, quantity & amount above.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. COMPACT SUMMARY STRIP -->
+        <div class="summary-strip-card mt-12">
+            <div class="summary-metric-block">
+                <span class="summary-metric-label">Total Quantity (All Models)</span>
+                <span class="summary-metric-val blue-text" id="summaryTotalQty">0</span>
+            </div>
+            <div class="summary-vertical-line"></div>
+            <div class="summary-metric-block">
+                <span class="summary-metric-label">Total Amount (All Models)</span>
+                <span class="summary-metric-val green-text" id="summaryTotalAmount">₹ 0</span>
+            </div>
+        </div>
+
+        <!-- 4. SAVE PURCHASE BUTTON -->
+        <div class="mt-12 mb-20">
+            <button type="submit" id="btnSavePurchase" class="btn-save-purchase-primary" disabled>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                    <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                    <polyline points="7 3 7 8 15 8"></polyline>
+                </svg>
+                <span>Save Purchase</span>
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- ================= QUICK ADD MODALS ================= -->
+
+<!-- Add Supplier Modal -->
+<div class="custom-modal" id="modalAddSupplier">
+    <div class="custom-modal-content">
+        <div class="custom-modal-header">
+            <h3>Add New Supplier</h3>
+            <span class="close-modal">&times;</span>
+        </div>
+        <div class="custom-modal-body">
+            <div class="form-field-item mb-10">
+                <label class="field-label">Supplier Name *</label>
+                <input type="text" id="new_supplier_name" class="form-input" placeholder="e.g. Mahavir Auto Spares">
+            </div>
+            <div class="form-field-item mb-10">
+                <label class="field-label">Contact Person</label>
+                <input type="text" id="new_supplier_contact" class="form-input" placeholder="e.g. Ramesh Patel">
+            </div>
+            <div class="form-field-item mb-10">
+                <label class="field-label">Phone Number</label>
+                <input type="text" id="new_supplier_phone" class="form-input" placeholder="e.g. 9876543210">
+            </div>
+        </div>
+        <div class="custom-modal-footer">
+            <button type="button" class="btn-modal-submit" id="btnSaveNewSupplier">Save Supplier</button>
+        </div>
+    </div>
+</div>
+
+<!-- Add Company Modal -->
+<div class="custom-modal" id="modalAddCompany">
+    <div class="custom-modal-content">
+        <div class="custom-modal-header">
+            <h3>Add New Company</h3>
+            <span class="close-modal">&times;</span>
+        </div>
+        <div class="custom-modal-body">
+            <div class="form-field-item">
+                <label class="field-label">Company Name *</label>
+                <input type="text" id="new_company_name" class="form-input" placeholder="e.g. Yakuza EV">
+            </div>
+        </div>
+        <div class="custom-modal-footer">
+            <button type="button" class="btn-modal-submit" id="btnSaveNewCompany">Save Company</button>
+        </div>
+    </div>
+</div>
+
+<!-- Add Model Modal -->
+<div class="custom-modal" id="modalAddModel">
+    <div class="custom-modal-content">
+        <div class="custom-modal-header">
+            <h3>Add New Model</h3>
+            <span class="close-modal">&times;</span>
+        </div>
+        <div class="custom-modal-body">
+            <div class="form-field-item mb-10">
+                <label class="field-label">Selected Company</label>
+                <input type="text" id="new_model_company_display" class="form-input readonly-input" readonly>
+            </div>
+            <div class="form-field-item">
+                <label class="field-label">Model Name *</label>
+                <input type="text" id="new_model_name" class="form-input" placeholder="e.g. Rubie Special">
+            </div>
+        </div>
+        <div class="custom-modal-footer">
+            <button type="button" class="btn-modal-submit" id="btnSaveNewModel">Save Model</button>
+        </div>
+    </div>
+</div>
+
+<!-- Add Color Modal -->
+<div class="custom-modal" id="modalAddColor">
+    <div class="custom-modal-content">
+        <div class="custom-modal-header">
+            <h3>Add New Color</h3>
+            <span class="close-modal">&times;</span>
+        </div>
+        <div class="custom-modal-body">
+            <div class="form-field-item mb-10">
+                <label class="field-label">Color Name *</label>
+                <input type="text" id="new_color_name" class="form-input" placeholder="e.g. Metallic Blue">
+            </div>
+            <div class="form-field-item">
+                <label class="field-label">Select Color Hex</label>
+                <input type="color" id="new_color_hex" class="form-input" value="#2563eb" style="height:40px; cursor:pointer;">
+            </div>
+        </div>
+        <div class="custom-modal-footer">
+            <button type="button" class="btn-modal-submit" id="btnSaveNewColor">Save Color</button>
+        </div>
+    </div>
+</div>
+
+<!-- Preview Modal -->
+<div class="custom-modal" id="photoViewModal">
+    <div class="custom-modal-content">
+        <div class="custom-modal-header">
+            <h3>Invoice Photo Preview</h3>
+            <span class="close-modal">&times;</span>
+        </div>
+        <div class="custom-modal-body text-center">
+            <img id="modalPreviewImage" src="" alt="Invoice Photo" class="modal-img-fluid">
+        </div>
+    </div>
+</div>
+
+<!-- Dynamic Django DB Data -->
+<script id="django-models-data" type="application/json">
+[
+    {% for model in models %}
+    {
+        "id": {{ model.id }},
+        "model_name": "{{ model.model_name|escapejs }}",
+        "company_id": {{ model.company.id }}
+    }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+]
+</script>
+
+<script id="django-colors-data" type="application/json">
+[
+    {% for color in colors %}
+    {
+        "id": {{ color.id }},
+        "color_name": "{{ color.color_name|escapejs }}",
+        "color_hex": "{{ color.color_hex|default:'#000000' }}"
+    }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+]
+</script>
+{% endblock %}
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+    const fileInput = document.getElementById('id_invoice_photo');
+    const dropzoneBox = document.getElementById('dropzoneBox');
+    const uploadedFileBar = document.getElementById('uploadedFileBar');
+    const fileNameText = document.getElementById('fileNameText');
+    const fileSizeText = document.getElementById('fileSizeText');
+    const btnViewPhoto = document.getElementById('btnViewPhoto');
+    const btnDownloadPhoto = document.getElementById('btnDownloadPhoto');
+    const btnDeletePhoto = document.getElementById('btnDeletePhoto');
+
+    let currentFileUrl = null;
+
+    // ૧. Upload Box પર ક્લિક કરવાથી File Selector ઓપન થશે
+    dropzoneBox.addEventListener('click', () => fileInput.click());
+
+    // ૨. ફાઇલ સિલેક્ટ થાય ત્યારે બાર દેખાડવો અને વિગતો સેટ કરવી
+    fileInput.addEventListener('change', function () {
+        const file = this.files[0];
+        if (file) {
+            // ફાઇલનું નામ અને સાઇઝ બતાવો
+            fileNameText.textContent = file.name;
+            fileSizeText.textContent = (file.size / 1024).toFixed(1) + ' KB';
+
+            // ફાઇલની URL બનાવો (Preview & Download માટે)
+            if (currentFileUrl) URL.revokeObjectURL(currentFileUrl);
+            currentFileUrl = URL.createObjectURL(file);
+
+            btnDownloadPhoto.href = currentFileUrl;
+            btnDownloadPhoto.download = file.name;
+
+            // View બટન પર નવી ટેબમાં ફોટો ઓપન થશે
+            btnViewPhoto.onclick = function () {
+                window.open(currentFileUrl, '_blank');
+            };
+
+            // 'd-none' રિમૂવ કરીને બાર શો (Show) કરો
+            uploadedFileBar.classList.remove('d-none');
+        }
+    });
+
+    // ૩. Delete બટન પર ક્લિક કરવાથી ફાઇલ રિમૂવ થશે અને બાર ફરી સંતાઈ જશે
+    btnDeletePhoto.addEventListener('click', function () {
+        fileInput.value = ''; // Input ખાલી કરો
+        if (currentFileUrl) {
+            URL.revokeObjectURL(currentFileUrl);
+            currentFileUrl = null;
+        }
+        uploadedFileBar.classList.add('d-none'); // બાર હાઇડ કરો
+    });
+});
+</script>
+
+{% block extra_js %}
+<script src="{% static 'js/purchase.js' %}"></script>
+{% endblock %}

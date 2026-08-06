@@ -1,0 +1,133 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Gatistvam E-Bike | Register Branch</title>
+<link rel="icon" href="{% static 'images/logo.png' %}" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'css/register.css' %}">
+</head>
+<body>
+
+<div class="page-wrap">
+  <div class="register-card">
+    <div class="register-card-content">
+
+      <div class="form-logo-wrap">
+        <img src="{% static 'images/logo.png' %}" alt="Gatistvam E-Bike Logo" class="form-logo">
+      </div>
+
+      <h2 class="welcome-title">Create New Branch Account</h2>
+      <p class="welcome-subtitle">Register your showroom branch</p>
+
+      <form id="registerForm" class="register-form" autocomplete="off" novalidate>
+
+        <div class="form-grid">
+
+          <div class="input-group">
+            <span class="input-icon">
+    <img src="{% static 'icon/branch.svg' %}" class="input-svg" alt="">
+</span>
+            <input type="text" id="branchName" name="branchName" class="text-input" placeholder="Branch Name" required>
+          </div>
+
+          <div class="input-group">
+           <span class="input-icon">
+    <img src="{% static 'icon/owner.svg' %}" class="input-svg" alt="">
+</span>
+            <input type="text" id="ownerName" name="ownerName" class="text-input" placeholder="Owner Name" required>
+          </div>
+
+          <div class="input-group">
+            <span class="input-icon">
+    <img src="{% static 'icon/phone.svg' %}" class="input-svg" alt="">
+</span>
+            <input type="tel" id="mobileNumber" maxlength="10" name="mobileNumber" class="text-input" placeholder="Mobile Number" required>
+          </div>
+
+          <div class="input-group">
+           <span class="input-icon">
+    <img src="{% static 'icon/mail.svg' %}" class="input-svg" alt="">
+</span>
+            <input type="email" id="emailAddress" name="emailAddress" class="text-input" placeholder="Email Address" required>
+          </div>
+
+          <div class="input-group">
+            <span class="input-icon">
+    <img src="{% static 'icon/user.svg' %}" class="input-svg" alt="">
+</span>
+            <input type="text" id="username" name="username" class="text-input" placeholder="Username" required>
+          </div>
+
+          <div class="input-group">
+    <span class="input-icon">
+        <img src="{% static 'icon/lock.svg' %}" class="input-svg" alt="">
+    </span>
+
+    <input type="password"
+           id="password"
+           name="password"
+           class="text-input"
+           placeholder="Password"
+           required>
+
+    <button type="button" class="toggle-password" id="togglePassword">
+        <img id="eyeIconPassword"
+             src="{% static 'icon/eye.svg' %}"
+             class="input-svg"
+             alt="Show Password">
+    </button>
+</div>
+
+      <div class="input-group full-width">
+
+    <span class="input-icon">
+        <img src="{% static 'icon/lock.svg' %}" class="input-svg" alt="">
+    </span>
+
+    <input type="password"
+           id="confirmPassword"
+           name="confirmPassword"
+           class="text-input"
+           placeholder="Confirm Password"
+           required>
+
+    <button type="button" class="toggle-password" id="toggleConfirmPassword">
+        <img id="eyeIconConfirm"
+             src="{% static 'icon/eye.svg' %}"
+             class="input-svg"
+             alt="Show Password">
+    </button>
+
+</div>
+          <div class="input-group textarea-group full-width">
+            <span class="input-icon input-icon-top">
+    <img src="{% static 'icon/location.svg' %}" class="input-svg" alt="">
+</span>
+            <textarea id="branchAddress" name="branchAddress" class="text-input textarea-input" placeholder="Branch Address" rows="3" required></textarea>
+          </div>
+
+        </div>
+
+        <button type="submit" class="btn-login btn-register">Register</button>
+
+        <p class="login-hint">
+          Already have an account?
+          <!-- Django integration point: replace href with {% url 'yakuza:login' %}
+               once you confirm the actual url name in urls.py -->
+          <a href="{% url 'yakuza:login' %}" class="login-link">Login</a>
+        </p>
+
+      </form>
+    </div>
+  </div>
+</div>
+
+
+<script src="{% static 'js/register.js' %}"></script>
+<div id="inlineToast" class="inline-toast"></div>
+</body>
+</html>

@@ -1,0 +1,245 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>
+        {% block title %}
+        Gatistvam E-Bike
+        {% endblock %}
+    </title>
+
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&display=swap" rel="stylesheet">
+    {% block extra_css %}<link rel="stylesheet" href="{% static 'css/dashboard.css' %}">{% endblock %}
+</head>
+
+<body>
+
+<!-- ================= Sidebar ================= -->
+ <aside class="sidebar">
+        <!-- Brand Header -->
+        <div class="sidebar-brand">
+        <div class="logo-container">
+            <img src="{% static 'images/logo.png' %}" alt="Gatistvam Logo" class="brand-logo-img">
+        </div>
+        <div class="brand-title-group">
+            <h1 class="brand-name">GATISTVAM</h1>
+            <h2 class="brand-subtitle">E-BIKE</h2>
+            <div class="brand-divider"></div>
+            <p class="brand-tagline">Smart • Secure • Fast</p>
+        </div>
+    </div>
+
+        <!-- Navigation Menu -->
+        <ul class="sidebar-menu">
+            <li><a href="{% url 'yakuza:dashboard' %}" class="menu-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"><i class="fas fa-home"></i> Dashboard</a></li>
+            <li><a href="{% url 'yakuza:live_stock' %}" class="menu-item {% if request.resolver_match.url_name == 'live_stock' %}active{% endif %}"><i class="fas fa-boxes"></i> Live Stock</a></li>
+            <li class="has-submenu {% if request.resolver_match.url_name == 'purchase' or request.resolver_match.url_name == 'purchase_history' %}open{% endif %}">
+            <a href="#" class="menu-item "><i class="fas fa-shopping-bag"></i> <span>Purchase</span>
+            <i class="fas fa-chevron-right submenu-arrow"></i>
+            </a>
+             <ul class="submenu">
+        <li>
+            <a href="{% url 'yakuza:purchase' %}"
+               class="{% if request.resolver_match.url_name == 'purchase' %}active{% endif %}">
+                ➕ New Purchase
+            </a>
+        </li>
+
+        <li>
+            <a href="{% url 'yakuza:purchase_history' %}"
+               class="{% if request.resolver_match.url_name == 'purchase_history' %}active{% endif %}">
+                📜 Purchase History
+            </a>
+        </li>
+    </ul>
+            </li>
+            <li><a href="{% url 'yakuza:sales' %}" class="menu-item {% if request.resolver_match.url_name == 'sales' %}active{% endif %}"><i class="fas fa-shopping-cart"></i> Sales</a></li>
+            <li><a href="{% url 'yakuza:customer' %}" class="menu-item {% if request.resolver_match.url_name == 'customer' %}active{% endif %}"><i class="fas fa-users"></i> Customers</a></li>
+            <li><a href="{% url 'yakuza:expenses' %}" class="menu-item {% if request.resolver_match.url_name == 'expenses' %}active{% endif %}"><i class="fas fa-wallet"></i> Expenses</a></li>
+            <li><a href="{% url 'yakuza:reports' %}" class="menu-item {% if request.resolver_match.url_name == 'reports' %}active{% endif %}"><i class="fas fa-chart-line"></i> Reports</a></li>
+            <li><a href="{% url 'yakuza:settings' %}" class="menu-item {% if request.resolver_match.url_name == 'settings' %}active{% endif %}"><i class="fas fa-cog"></i> Settings</a></li>
+           
+        </ul>
+
+
+    </aside>
+
+<!-- ================= Main ================= -->
+
+<main class="main-content">
+
+<header class="topbar">
+
+<div class="topbar-left">
+
+<h2>
+
+{% block page_title %}
+Dashboard
+{% endblock %}
+
+</h2>
+
+</div>
+
+<div class="topbar-right">
+
+<div class="date-badge" id="calendarBadge" onclick="openCalendar()">
+                    <i class="far fa-calendar-alt"></i> 
+                    <span id="dateText"></span>
+                    <input type="date" id="hiddenDateInput" onchange="updateSelectedDate(this.value)">
+                </div>
+
+<div class="notification-icon">
+    <a href="{% url 'yakuza:notifications' %}" class="notification-icon-btn" title="Notifications">
+    <i class="fas fa-bell"></i>
+    {% if unread_notifications_count > 0 %}
+        <span class="badge-count">{{ unread_notifications_count }}</span>
+    {% endif %}
+</a>
+</div>
+     
+    <div class="profile-dropdown">
+    <button class="profile-btn" id="profileBtn" title="{{ request.user.get_full_name|default:request.user.username }}">
+        {% if request.user.is_authenticated and request.user.profile_picture %}
+            <img src="{{ request.user.profile_picture.url }}" alt="Profile" class="google-avatar-img">
+        {% else %}
+            <div class="google-avatar-text">
+                {{ request.user.first_name|default:request.user.username|slice:":1"|upper }}
+            </div>
+        {% endif %}
+    </button>
+
+    <div class="profile-menu" id="profileMenu">
+        <div class="profile-header-info">
+            <strong>{{ request.user.get_full_name|default:request.user.username }}</strong>
+            <small>{{ request.user.email }}</small>
+        </div>
+
+        <hr>
+        <a href="{% url 'yakuza:settings' %}#profile">
+            <i class="fas fa-user"></i>
+            Profile
+        </a>
+        <a href="{% url 'yakuza:settings' %}">
+            <i class="fas fa-cog"></i>
+            Settings
+        </a>
+        <a href="{% url 'yakuza:settings' %}#security">
+            <i class="fas fa-key"></i>
+            Change Password
+        </a>
+        
+        <hr>
+        <a href="#">
+            <i class="fas fa-question-circle"></i>
+            Help
+        </a>
+        <a href="#">
+            <i class="fas fa-info-circle"></i>
+            About Software
+        </a>
+        <hr>
+        <a href="{% url 'yakuza:logout' %}" class="logout">
+            <i class="fas fa-sign-out-alt"></i>
+            Logout
+        </a>
+    </div>
+</div>
+</header>
+
+<div class="dashboard-body">
+
+{% block content %}
+
+{% endblock %}
+
+</div>
+
+</main>
+ <!-- JavaScript to Handle Calendar Picker -->
+    <script>
+
+    const profileBtn=document.getElementById("profileBtn");
+const profileMenu=document.getElementById("profileMenu");
+
+profileBtn.addEventListener("click",function(e){
+
+    e.stopPropagation();
+
+    profileMenu.classList.toggle("show");
+
+});
+
+document.addEventListener("click",function(){
+
+    profileMenu.classList.remove("show");
+
+});
+    function openCalendar() {
+        const dateInput = document.getElementById('hiddenDateInput');
+        if (dateInput.showPicker) {
+            dateInput.showPicker();
+        } else {
+            dateInput.click();
+        }
+    }
+
+    function formatDate(dateObj) {
+        const options = {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        };
+        return dateObj.toLocaleDateString('en-GB', options);
+    }
+
+    function updateSelectedDate(val) {
+        if (val) {
+            const dateObj = new Date(val);
+            document.getElementById('dateText').innerText = formatDate(dateObj);
+        }
+    }
+
+    window.onload = function () {
+        const today = new Date();
+
+        document.getElementById('dateText').innerText = formatDate(today);
+
+        document.getElementById('hiddenDateInput').value =
+            today.toISOString().split('T')[0];
+    };
+
+    
+document.addEventListener("DOMContentLoaded", function () {
+        const hasSubmenus = document.querySelectorAll(".has-submenu");
+
+        hasSubmenus.forEach(function (submenuItem) {
+            const toggleLink = submenuItem.querySelector(".menu-item");
+
+            if (toggleLink) {
+                toggleLink.addEventListener("click", function (e) {
+                    e.preventDefault(); // Page scroll ne roko
+                    submenuItem.classList.toggle("open");
+                });
+            }
+        });
+});
+
+</script>
+
+{% block extra_js %}
+
+{% endblock %}
+
+</body>
+
+</html>

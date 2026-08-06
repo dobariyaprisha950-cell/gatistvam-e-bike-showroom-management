@@ -1,0 +1,109 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>Gatistvam E-Bike | Login</title>
+    <link rel="icon" href="{% static 'images/logo.png' %}" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/login.css' %}">
+</head>
+<body>
+
+<div class="page-wrap">
+  <div class="login-card">
+
+    <!-- ===================== LEFT PANEL ===================== -->
+    <div class="left-panel">
+      <div class="left-panel-content">
+        <h1 class="brand-title">
+          <span class="brand-title-cap">G</span>ATISTVAM
+          <span class="brand-title-sub">E-BIKE</span>
+        </h1>
+        <div class="brand-divider"></div>
+        <p class="brand-tagline">Smart&nbsp;&bull;&nbsp;Secure&nbsp;&bull;&nbsp;Fast</p>
+
+        <div class="brand-logo-wrap">
+          <img src="{% static 'images/logo.png' %}" alt="Gatistvam E-Bike Logo" class="brand-logo">
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== RIGHT PANEL ===================== -->
+    <div class="right-panel">
+      <div class="right-panel-content">
+
+        <div class="form-logo-wrap">
+          <img src="{% static 'images/logo.png' %}" alt="Gatistvam E-Bike Logo" class="form-logo">
+        </div>
+
+        <h2 class="welcome-title">Welcome Back!</h2>
+
+        <form id="loginForm" class="login-form" action="{% url 'yakuza:login' %}" method="POST" autocomplete="off" novalidate>
+            {% csrf_token %}
+
+            <div class="input-group">
+                <span class="input-icon">
+                    <img src="{% static 'icon/user.svg' %}" class="input-svg" alt="User">
+                </span>
+                <input type="text" id="username" name="username" class="text-input" autocomplete="off" placeholder="Username" required>
+            </div>
+
+            <div class="input-group">
+                <span class="input-icon">
+                    <img src="{% static 'icon/lock.svg' %}" class="input-svg" alt="Password">
+                </span>
+                <input type="password" id="password" name="password" class="text-input" autocomplete="new-password" placeholder="Password" required>
+                <button type="button" class="toggle-password" id="togglePassword" aria-label="Show password">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" id="eyeIcon">
+                        <path d="M12 5C5.63636 5 1 12 1 12C1 12 5.63636 19 12 19C18.3636 19 23 12 23 12C23 12 18.3636 5 12 5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                        <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="form-row">
+                <label class="checkbox-wrap">
+                    <input type="checkbox" id="rememberMe" name="rememberMe">
+                    <span class="checkbox-box"></span>
+                    <span class="checkbox-label">Remember me</span>
+                </label>
+            </div>
+
+            <button type="submit" class="btn-login">Login</button>
+
+            <div class="divider-row">
+                <span class="divider-line"></span>
+                <span class="divider-text">or</span>
+                <span class="divider-line"></span>
+            </div>
+            
+            <div id="inlineToast" class="inline-toast"></div>
+
+            <button type="button" class="btn-security" id="securityLoginBtn">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="security-icon">
+                    <path d="M12 2L4 5V11C4 16.55 7.84 21.74 12 23C16.16 21.74 20 16.55 20 11V5L12 2Z" fill="currentColor"/>
+                    <path d="M10.5 13.5L8.5 11.5L7 13L10.5 16.5L17 10L15.5 8.5L10.5 13.5Z" fill="white"/>
+                </svg>
+                <span>Login with Security Option</span>
+            </button>
+            
+            <div class="register-section">
+                <a href="{% url 'yakuza:register' %}" class="btn-register">
+                    Create New Branch Account
+                </a>
+            </div>
+        </form>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="{% static 'js/login.js' %}"></script>
+
+</body>
+</html>
