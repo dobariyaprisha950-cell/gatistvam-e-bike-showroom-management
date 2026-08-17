@@ -6,266 +6,254 @@ document.addEventListener('DOMContentLoaded', function () {
 
   var registerForm       = document.getElementById('registerForm');
 
-  var branchNameInput    = document.getElementById('branchName');
+  // Branch Selection Elements
+  var branchSelect       = document.getElementById('branchSelect');
+  var branchNameInput    = document.getElementById('branchNameInput');
+  var toggleAddBranchBtn = document.getElementById('toggleAddBranchBtn');
+  var isNewBranch        = false;
+
+  // Other Input Elements
   var ownerNameInput      = document.getElementById('ownerName');
   var mobileInput          = document.getElementById('mobileNumber');
-  var emailInput            = document.getElementById('emailAddress');
   var usernameInput        = document.getElementById('username');
   var passwordInput        = document.getElementById('password');
   var confirmPasswordInput = document.getElementById('confirmPassword');
   var branchAddressInput   = document.getElementById('branchAddress');
 
+  // Password Toggle Elements
   var togglePasswordBtn        = document.getElementById('togglePassword');
   var toggleConfirmPasswordBtn = document.getElementById('toggleConfirmPassword');
   var eyeIconPassword           = document.getElementById('eyeIconPassword');
   var eyeIconConfirm            = document.getElementById('eyeIconConfirm');
 
-  var EYE_OPEN =
-    '<path d="M12 5C5.63636 5 1 12 1 12C1 12 5.63636 19 12 19C18.3636 19 23 12 23 12C23 12 18.3636 5 12 5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '<circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/>';
+  /* ---------- Branch Dropdown / + Add Toggle Logic ---------- */
+  if (toggleAddBranchBtn) {
+      toggleAddBranchBtn.addEventListener('click', function() {
+          isNewBranch = !isNewBranch;
+          if (isNewBranch) {
+              if (branchSelect) branchSelect.style.display = 'none';
+              if (branchNameInput) {
+                  branchNameInput.style.display = 'block';
+                  branchNameInput.value = '';
+                  branchNameInput.focus();
+              }
+              toggleAddBranchBtn.textContent = '✕';
+              toggleAddBranchBtn.style.background = '#ef4444';
+              toggleAddBranchBtn.title = "Select Existing Branch";
+          } else {
+              if (branchSelect) branchSelect.style.display = 'block';
+              if (branchNameInput) branchNameInput.style.display = 'none';
+              toggleAddBranchBtn.textContent = '+';
+              toggleAddBranchBtn.style.background = '#2563eb';
+              toggleAddBranchBtn.title = "Add New Branch";
+          }
+      });
+  }
 
-  var EYE_CLOSED =
-    '<path d="M3 3L21 21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>' +
-    '<path d="M10.6 10.7C10.2 11.1 10 11.5 10 12C10 13.1 10.9 14 12 14C12.5 14 12.9 13.8 13.3 13.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '<path d="M6.5 6.7C4.1 8.2 2 11 2 11C2 11 5.64 17.8 12 17.8C13.6 17.8 15 17.4 16.2 16.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '<path d="M9.5 5.4C10.3 5.1 11.1 5 12 5C18.36 5 22 11.8 22 11.8C22 11.8 21.2 13.4 19.6 15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>';
-
-  /* ---------- Reusable password toggle ---------- */
+  /* ---------- Reusable Password Toggle ---------- */
   function wireToggle(btn, input, icon) {
+      if (!btn || !input || !icon) return;
 
-    if (!btn || !input || !icon) return;
+      btn.addEventListener("click", function () {
+          const isHidden = input.type === "password";
+          input.type = isHidden ? "text" : "password";
 
-    btn.addEventListener("click", function () {
+          if (icon.tagName.toLowerCase() === 'img') {
+              icon.src = isHidden
+                  ? "/static/icon/eye-off.svg"
+                  : "/static/icon/eye.svg";
+              icon.alt = isHidden ? "Hide Password" : "Show Password";
+          }
+      });
+  }
 
-        const hidden = input.type === "password";
-
-        input.type = hidden ? "text" : "password";
-
-        icon.src = hidden
-            ? "/static/icon/eye-off.svg"
-            : "/static/icon/eye.svg";
-
-        icon.alt = hidden
-            ? "Hide Password"
-            : "Show Password";
-    });
-
-}
   wireToggle(togglePasswordBtn, passwordInput, eyeIconPassword);
   wireToggle(toggleConfirmPasswordBtn, confirmPasswordInput, eyeIconConfirm);
-/* ---------- Live Validation ---------- */
 
-branchNameInput.addEventListener("blur",()=>validateRequired(branchNameInput));
-ownerNameInput.addEventListener("blur",()=>validateRequired(ownerNameInput));
-usernameInput.addEventListener("blur",()=>validateRequired(usernameInput));
-branchAddressInput.addEventListener("blur",()=>validateRequired(branchAddressInput));
+  /* ---------- Live Validation Events ---------- */
+  if (branchNameInput) branchNameInput.addEventListener("blur", () => { if (isNewBranch) validateRequired(branchNameInput); });
+  if (ownerNameInput) ownerNameInput.addEventListener("blur", () => validateRequired(ownerNameInput));
+  if (usernameInput) usernameInput.addEventListener("blur", () => validateRequired(usernameInput));
+  if (branchAddressInput) branchAddressInput.addEventListener("blur", () => validateRequired(branchAddressInput));
+  if (mobileInput) mobileInput.addEventListener("blur", validateMobile);
+  if (passwordInput) passwordInput.addEventListener("blur", validatePassword);
+  if (confirmPasswordInput) confirmPasswordInput.addEventListener("blur", validateConfirmPassword);
 
-mobileInput.addEventListener("blur",validateMobile);
+  /* ---------- Form Submission Handler ---------- */
+  if (registerForm) {
+      registerForm.addEventListener("submit", function (e) {
+          e.preventDefault();
 
-emailInput.addEventListener("blur",validateEmail);
+          // Validate Branch Selection / Input
+          if (isNewBranch) {
+              if (!validateRequired(branchNameInput)) return;
+          } else {
+              if (!branchSelect || !branchSelect.value) {
+                  showToast(branchSelect || registerForm, "Please select a branch or click + to add new");
+                  return;
+              }
+          }
 
-passwordInput.addEventListener("blur",validatePassword);
+          // Validate Rest of Fields
+          if (
+              !validateRequired(ownerNameInput) ||
+              !validateMobile() ||
+              !validateRequired(usernameInput) ||
+              !validatePassword() ||
+              !validateConfirmPassword() ||
+              !validateRequired(branchAddressInput)
+          ) {
+              return;
+          }
 
-confirmPasswordInput.addEventListener("blur",validateConfirmPassword);
-  /* ---------- Validation + submit ---------- */
-  registerForm.addEventListener("submit",function(e){
-
-    e.preventDefault();
-
-    if(
-        !validateRequired(branchNameInput) ||
-        !validateRequired(ownerNameInput) ||
-        !validateMobile() ||
-        !validateEmail() ||
-        !validateRequired(usernameInput) ||
-        !validatePassword() ||
-        !validateConfirmPassword() ||
-        !validateRequired(branchAddressInput)
-    ){
-        return;
-    }
-
-    submitRegistration();
-
-});
-
- 
-function validateRequired(input){
-
-    if(input.value.trim()===""){
-        showToast(input,input.placeholder+" is required");
-        return false;
-    }
-
-    return true;
-}
-
-function validateEmail(){
-
-    if(!validateRequired(emailInput)) return false;
-
-    const email = emailInput.value.trim();
-
-    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
-        showToast(emailInput,"Please enter valid email");
-        emailInput.focus();
-        return false;
-    }
-
-    return true;
-}
-function isValidEmail(email){
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-function isValidMobile(value){
-    return /^[6-9][0-9]{9}$/.test(value);
-}
-
-function validateMobile(){
-
-    if(!validateRequired(mobileInput)) return false;
-
-    const mobile = mobileInput.value.trim();
-
-    if(!/^[6-9][0-9]{9}$/.test(mobile)){
-        showToast(mobileInput,"Enter valid mobile number");
-        mobileInput.focus();
-        return false;
-    }
-
-    return true;
-}
-
-function validatePassword(){
-
-    if(!validateRequired(passwordInput)) return false;
-
-    if(passwordInput.value.length<8){
-        showToast(passwordInput,"Password must be at least 8 characters");
-        return false;
-    }
-
-    return true;
-}
-
-function validateConfirmPassword(){
-
-    if(!validateRequired(confirmPasswordInput)) return false;
-
-    if(passwordInput.value!==confirmPasswordInput.value){
-        showToast(confirmPasswordInput,"Passwords do not match");
-        return false;
-    }
-
-    return true;
-}
-   function submitRegistration() {
-    var registerBtn = registerForm.querySelector('.btn-register');
-    var originalText = registerBtn.textContent;
-
-    registerBtn.disabled = true;
-    registerBtn.textContent = 'Registering...';
-    
-    /*
-      Django integration point:
-      Replace this block with a fetch() call to your registration endpoint, e.g.
-
-      fetch('/yakuza/register/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': getCookie('csrftoken')
-        },
-        body: JSON.stringify({
-          branch_name: branchNameInput.value.trim(),
-          owner_name: ownerNameInput.value.trim(),
-          mobile_number: mobileInput.value.trim(),
-          email: emailInput.value.trim(),
-          username: usernameInput.value.trim(),
-          password: passwordInput.value,
-          confirm_password: confirmPasswordInput.value,
-          branch_address: branchAddressInput.value.trim()
-        })
-      })
-      .then(function (res) { return res.json(); })
-      .then(function (data) {
-        if (data.success) {
-          window.location.href = data.redirect_url || '/login/';
-        } else {
-          registerBtn.disabled = false;
-          registerBtn.textContent = originalText;
-          alert(data.message || 'Registration failed. Please check your details.');
-        }
-      })
-      .catch(function () {
-        registerBtn.disabled = false;
-        registerBtn.textContent = originalText;
-        alert('Something went wrong. Please try again.');
+          submitRegistration();
       });
-    */
-
-    window.setTimeout(function () {
-
-    registerBtn.disabled = false;
-    registerBtn.textContent = originalText;
-
-    showToast(registerBtn,"Registration Successful","success");
-
-},800);
   }
 
-  /* ---------- CSRF helper for Django ---------- */
-  function getCookie(name) {
-    var cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-      var cookies = document.cookie.split(';');
-      for (var i = 0; i < cookies.length; i++) {
-        var cookie = cookies[i].trim();
-        if (cookie.substring(0, name.length + 1) === (name + '=')) {
-          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-          break;
-        }
+  /* ---------- Validation Helpers ---------- */
+  function validateRequired(input) {
+      if (!input || input.value.trim() === "") {
+          if (input) showToast(input, (input.placeholder || "This field") + " is required");
+          return false;
       }
-    }
-    return cookieValue;
+      return true;
   }
-function showToast(input,message,type="error"){
 
-    const toast=document.getElementById("inlineToast");
+  function validateMobile() {
+      if (!validateRequired(mobileInput)) return false;
 
-if(type==="success"){
+      const mobile = mobileInput.value.trim();
+      if (!/^[6-9][0-9]{9}$/.test(mobile)) {
+          showToast(mobileInput, "Enter a valid 10-digit mobile number");
+          mobileInput.focus();
+          return false;
+      }
+      return true;
+  }
 
-    toast.style.position="fixed";
+  function validatePassword() {
+      if (!validateRequired(passwordInput)) return false;
 
-    toast.innerHTML='<span style="color:#22c55e;">✔</span> '+message;
+      if (passwordInput.value.length < 8) {
+          showToast(passwordInput, "Password must be at least 8 characters");
+          return false;
+      }
+      return true;
+  }
 
-    toast.style.left="50%";
-    toast.style.top="50%";
-    toast.style.transform="translate(-50%,-50%)";
+  function validateConfirmPassword() {
+      if (!validateRequired(confirmPasswordInput)) return false;
 
-}
-else{
+      if (passwordInput.value !== confirmPasswordInput.value) {
+          showToast(confirmPasswordInput, "Passwords do not match");
+          return false;
+      }
+      return true;
+  }
 
-    toast.style.position="absolute";
+  /* ---------- Submit Registration AJAX ---------- */
+  function submitRegistration() {
+      var registerBtn = registerForm.querySelector('.btn-register') || registerForm.querySelector('button[type="submit"]');
+      var originalText = registerBtn ? registerBtn.textContent : 'Register';
 
-    let group=input.closest(".input-group");
+      var csrfTokenInput = document.querySelector('[name=csrfmiddlewaretoken]');
+      var csrfToken = csrfTokenInput ? csrfTokenInput.value : getCookie('csrftoken');
 
-    let rect=group.getBoundingClientRect();
+      var selectedBranchId = isNewBranch ? '' : (branchSelect ? branchSelect.value : '');
+      var typedBranchName  = isNewBranch ? branchNameInput.value.trim() : '';
 
-    toast.innerHTML='<span style="color:#F4B400;">⚠</span> '+message;
+      if (registerBtn) {
+          registerBtn.disabled = true;
+          registerBtn.textContent = 'Registering...';
+      }
 
-    toast.style.left=rect.left+"px";
-    toast.style.top=(window.scrollY+rect.bottom-8)+"px";
-}
-    toast.classList.add("show");
+      fetch(window.location.href, {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': csrfToken
+          },
+          body: JSON.stringify({
+              branch_id: selectedBranchId,
+              branch_name: typedBranchName,
+              owner_name: ownerNameInput.value.trim(),
+              mobile_number: mobileInput.value.trim(),
+              username: usernameInput.value.trim(),
+              password: passwordInput.value,
+              confirm_password: confirmPasswordInput.value,
+              branch_address: branchAddressInput.value.trim()
+          })
+      })
+      .then(function (res) {
+          return res.json().then(data => ({ status: res.status, body: data }));
+      })
+      .then(function (result) {
+          var data = result.body;
+          if (data.success) {
+              if (registerBtn) showToast(registerBtn, "Registration Successful!", "success");
+              setTimeout(function () {
+                  window.location.href = data.redirect_url || '/yakuza/login/';
+              }, 1000);
+          } else {
+              if (registerBtn) {
+                  registerBtn.disabled = false;
+                  registerBtn.textContent = originalText;
+                  showToast(registerBtn, data.message || "Registration failed", "error");
+              }
+          }
+      })
+      .catch(function (err) {
+          if (registerBtn) {
+              registerBtn.disabled = false;
+              registerBtn.textContent = originalText;
+              showToast(registerBtn, err.message || "Something went wrong. Please try again.", "error");
+          }
+      });
+  }
 
-    clearTimeout(toast.timer);
+  /* ---------- CSRF Helper ---------- */
+  function getCookie(name) {
+      var cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+          var cookies = document.cookie.split(';');
+          for (var i = 0; i < cookies.length; i++) {
+              var cookie = cookies[i].trim();
+              if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                  cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                  break;
+              }
+          }
+      }
+      return cookieValue;
+  }
 
-    toast.timer=setTimeout(function(){
-        toast.classList.remove("show");
-    },3000);
+  /* ---------- Toast Message Helper ---------- */
+  function showToast(input, message, type = "error") {
+      const toast = document.getElementById("inlineToast");
+      if (!toast) return;
 
-}
+      if (type === "success") {
+          toast.style.position = "fixed";
+          toast.style.left = "50%";
+          toast.style.top = "50%";
+          toast.style.transform = "translate(-50%, -50%)";
+          toast.innerHTML = '<span style="color:#22c55e;">✔</span> ' + message;
+      } else {
+          toast.style.position = "fixed";
+          let group = input.closest(".input-group") || input;
+          let rect = group.getBoundingClientRect();
 
+          toast.innerHTML = '<span style="color:#F4B400;">⚠</span> ' + message;
+          toast.style.left = rect.left + "px";
+          toast.style.top = (rect.bottom + 6) + "px";
+          toast.style.transform = "none";
+      }
+
+      toast.classList.add("show");
+
+      clearTimeout(toast.timer);
+      toast.timer = setTimeout(function () {
+          toast.classList.remove("show");
+      }, 3000);
+  }
 });

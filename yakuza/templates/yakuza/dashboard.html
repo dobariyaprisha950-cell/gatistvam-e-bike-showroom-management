@@ -22,7 +22,7 @@
                 <div class="metric-icon blue"><i class="fas fa-motorcycle"></i></div>
                 <span class="metric-title">Total Vehicles</span>
             </div>
-            <div class="metric-value">{{ total_vehicles|default:0 }}</div>
+            <div class="metric-value">{{ total_vehicles }}</div>
             <div class="metric-footer">
                 <span class="trend-badge positive"><i class="fas fa-arrow-up"></i> Live</span>
                 <span class="trend-text">in stock</span>
@@ -35,7 +35,7 @@
                 <div class="metric-icon green"><i class="fas fa-chart-line"></i></div>
                 <span class="metric-title">Total Sales</span>
             </div>
-            <div class="metric-value">₹ {{ total_sales|default:0 }}</div>
+            <div class="metric-value">₹ {{ total_sales }}</div>
             <div class="metric-footer">
                 <span class="trend-badge positive"><i class="fas fa-arrow-up"></i> Live</span>
                 <span class="trend-text">total revenue</span>
@@ -48,7 +48,7 @@
                 <div class="metric-icon orange"><i class="fas fa-shopping-cart"></i></div>
                 <span class="metric-title">Total Purchase</span>
             </div>
-            <div class="metric-value">₹ {{ total_purchases|default:0 }}</div>
+            <div class="metric-value">₹ {{ total_purchases }}</div>
             <div class="metric-footer">
                 <span class="trend-badge positive"><i class="fas fa-arrow-up"></i> Live</span>
                 <span class="trend-text">total expense</span>
@@ -61,7 +61,7 @@
                 <div class="metric-icon purple"><i class="fas fa-rupee-sign"></i></div>
                 <span class="metric-title">Total Profit</span>
             </div>
-            <div class="metric-value">₹ {{ total_profit|default:0 }}</div>
+            <div class="metric-value">₹ {{ total_profit }}</div>
             <div class="metric-footer">
                 <span class="trend-badge positive"><i class="fas fa-arrow-up"></i> Live</span>
                 <span class="trend-text">net profit</span>
@@ -74,7 +74,7 @@
                 <div class="metric-icon cyan"><i class="fas fa-percentage"></i></div>
                 <span class="metric-title">Profit Margin</span>
             </div>
-            <div class="metric-value">{{ profit_margin|default:0 }}%</div>
+            <div class="metric-value">{{ profit_margin }}</div>
             <div class="metric-footer">
                 <span class="trend-badge positive"><i class="fas fa-arrow-up"></i> Live</span>
                 <span class="trend-text">margin rate</span>
@@ -86,35 +86,38 @@
     <div class="middle-grid">
         <!-- Sales Overview Chart Box -->
         <div class="card sales-card">
-            <div class="card-header">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
                 <h3>Sales Overview</h3>
+                <select id="salesFilter" onchange="fetchFilteredSales(this.value)" style="padding: 5px 10px; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; font-size: 0.85rem; outline: none; cursor: pointer; color: #475569;">
+                    <option value="this_month">This Month</option>
+                    <option value="this_year">This Year</option>
+                    <option value="all">All Time</option>
+                </select>
             </div>
-            <div class="chart-container" style="position: relative; height:200px;">
+            <div class="chart-container" style="position: relative; height: 240px; width: 100%; margin-top: 10px;">
                 <canvas id="salesChart"></canvas>
+                <div id="noSalesDataMessage" style="display: none; position: absolute; top: 45%; width: 100%; text-align: center; color: #94a3b8; font-size: 0.9rem;">
+                    No sales data available
+                </div>
             </div>
         </div>
-
+        
         <!-- Stock Overview Donut Chart -->
-        <div class="card stock-card">
-            <div class="card-header">
-                <h3>Stock Overview</h3>
-            </div>
-            <div class="donut-content">
-                <div class="donut-chart-box" style="position: relative; height:120px;">
-                    <canvas id="stockChart"></canvas>
-                    <div class="donut-center-text" style="position: absolute; top:35%; left:35%; text-align:center;">
-                        <span class="donut-total-num">{{ total_vehicles|default:0 }}</span>
-                        <span class="donut-total-label">Total</span>
-                    </div>
-                </div>
-                <div class="stock-legend">
-                    <div class="legend-item"><span class="dot blue"></span> <span class="leg-name">Available</span> <span class="leg-val">{{ available_stock }}</span></div>
-                    <div class="legend-item"><span class="dot green"></span> <span class="leg-name">Sold</span> <span class="leg-val">{{ sold_stock }}</span></div>
-                    <div class="legend-item"><span class="dot orange"></span> <span class="leg-name">Reserved</span> <span class="leg-val">{{ reserved_stock }}</span></div>
-                </div>
+<div class="card stock-card" style="overflow: visible !important;">
+    <div class="card-header">
+        <h3>Stock Overview</h3>
+    </div>
+    <div class="donut-content" style="position: relative; width: 100%; height: 240px; display: flex; justify-content: center; align-items: center; overflow: visible !important;">
+        <div class="donut-chart-box" style="position: relative; width: 220px; height: 220px;">
+            <canvas id="stockChart"></canvas>
+            <div class="donut-center-text" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none;">
+                <span class="donut-total-num" style="display: block; font-weight: 700; font-size: 1.6rem; color: #0f172a; line-height: 1;">{{ total_available_raw }}</span>
+                <span class="donut-total-label" style="font-size: 0.8rem; color: #64748b; font-weight: 500; margin-top: 4px; display: block;">Total</span>
             </div>
         </div>
-
+    </div>
+</div>
+        
         <!-- Low Stock Alert Box -->
         <div class="card alert-card">
             <div class="card-header">
@@ -126,13 +129,13 @@
                 <div class="alert-item">
                     <div class="alert-img-box"><i class="fas fa-motorcycle"></i></div>
                     <div class="alert-info">
-                        <h4>{{ item.item_name|default:item.model_name }}</h4>
-                        <p>Stock: {{ item.quantity }}</p>
+                        <h4>{{ item.model_name }} ({{ item.color_name }})</h4>
+                        <p>Available: {{ item.quantity }}</p>
                     </div>
                     <span class="badge-low">Low</span>
                 </div>
                 {% empty %}
-                <p style="padding: 15px; text-align: center; color: #94a3b8;">No low stock alerts</p>
+                <p style="padding: 15px; text-align: center; color: #94a3b8;">No low-stock vehicles</p>
                 {% endfor %}
             </div>
         </div>
@@ -141,37 +144,38 @@
     <!-- Bottom Row: Tables -->
     <div class="bottom-grid">
         <!-- Recent Sales Table -->
-<div class="card table-card">
-    <div class="card-header">
-        <h3>Recent Sales</h3>
-        <a href="{% url 'yakuza:sales' %}" class="view-all-link">View All</a>
-    </div>
-    <div class="table-responsive">
-        <table class="data-table">
-            <tbody>
-                {% for sale in recent_sales %}
-                <tr>
-                    <td>
-                        <div class="item-flex">
-                            <div class="tbl-scooter"><i class="fas fa-motorcycle"></i></div>
-                            <div>
-                                <h4>Invoice #{{ sale.invoice_number|default:sale.id }}</h4>
-                                <p>{{ sale.customer_name|default:sale.stock.model_name|default:"Sale Item" }}</p>
-                            </div>
-                        </div>
-                    </td>
-                    <td class="text-right">
-                        <div class="amount-val">₹ {{ sale.grand_total|default:sale.total_price|default:0 }}</div>
-                        <span class="status-badge completed">Completed</span>
-                    </td>
-                </tr>
-                {% empty %}
-                <tr><td colspan="2" style="text-align:center; padding:15px; color:#94a3b8;">No recent sales found.</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
+        <div class="card table-card">
+            <div class="card-header">
+                <h3>Recent Sales</h3>
+                <a href="{% url 'yakuza:customer' %}" class="view-all-link">View All</a>
+            </div>
+            <div class="table-responsive">
+                <table class="data-table">
+                    <tbody>
+                        {% for sale in recent_sales %}
+                        <tr>
+                            <td>
+                                <div class="item-flex">
+                                    <div class="tbl-scooter"><i class="fas fa-motorcycle"></i></div>
+                                    <div>
+                                        <h4>Invoice #{{ sale.invoice_no }}</h4>
+                                        <p>{{ sale.customer_name }} ({% if sale.stock and sale.stock.model %}{{ sale.stock.model.model_name }}{% else %}Vehicle{% endif %})</p>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="text-right">
+                                <div class="amount-val">₹ {{ sale.grand_total }}</div>
+                                <span class="status-badge completed">Completed</span>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="2" style="text-align:center; padding:15px; color:#94a3b8;">No recent sales found.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <!-- Recent Purchases -->
         <div class="card table-card">
             <div class="card-header">
@@ -187,13 +191,13 @@
                                 <div class="item-flex">
                                     <div class="tbl-bag"><i class="fas fa-shopping-bag"></i></div>
                                     <div>
-                                        <h4>{{ purchase.invoice_number|default:purchase.purchase_number }}</h4>
-                                        <p>{{ purchase.supplier.supplier_name|default:purchase.supplier.name|default:"Supplier" }}</p>
+                                        <h4>PO #{{ purchase.purchase_number }}</h4>
+                                        <p>{{ purchase.supplier.supplier_name }}</p>
                                     </div>
                                 </div>
                             </td>
                             <td class="text-right">
-                                <div class="amount-val">₹ {{ purchase.total_amount|default:purchase.grand_total|default:0 }}</div>
+                                <div class="amount-val">₹ {{ purchase.computed_total }}</div>
                                 <span class="status-badge completed">Completed</span>
                             </td>
                         </tr>
@@ -208,19 +212,15 @@
 
 </div>
 
-{{ available_stock|default:0|json_script:"available-stock-data" }}
-{{ sold_stock|default:0|json_script:"sold-stock-data" }}
-{{ reserved_stock|default:0|json_script:"reserved-stock-data" }}
-{{ other_stock|default:0|json_script:"other-stock-data" }}
-
+<!-- Safely Pass Real Data from Django to JavaScript Context -->
 <script>
-    window.dashboardData = {
-        available: JSON.parse(document.getElementById('available-stock-data').textContent),
-        sold: JSON.parse(document.getElementById('sold-stock-data').textContent),
-        reserved: JSON.parse(document.getElementById('reserved-stock-data').textContent),
-        other: JSON.parse(document.getElementById('other-stock-data').textContent)
-    };
+    window.salesChartLabels = JSON.parse('{{ sales_chart_labels|escapejs }}');
+    window.salesChartData = JSON.parse('{{ sales_chart_data|escapejs }}');
+    window.stockModelLabels = JSON.parse('{{ stock_model_labels|escapejs }}');
+    window.stockModelCounts = JSON.parse('{{ stock_model_counts|escapejs }}');
 </script>
 
+<!-- Ensure Chart.js is loaded prior to execution -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="{% static 'js/dashboard.js' %}"></script>
 {% endblock %}

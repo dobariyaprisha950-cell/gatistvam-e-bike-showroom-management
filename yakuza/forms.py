@@ -1,9 +1,10 @@
 from django import forms
 from django.core.exceptions import ValidationError
+from django.contrib.auth.models import User
 from yakuza.models import (
-    Branch, UserProfile, Supplier, VehicleCompany, BatteryCapacity,
+    Branch, UserProfile, Supplier, VehicleCompany,
     VehicleColor, VehicleModel, Purchase, PurchaseItem, Stock,
-    Sales, ExpenseMaster, Expense 
+    Sales, ExpenseMaster, Expense, InvoiceSetting, Settings
 )
 
 
@@ -16,7 +17,7 @@ class BranchForm(forms.ModelForm):
 class UserProfileForm(forms.ModelForm):
     class Meta:
         model = UserProfile
-        fields = ['role', 'branch', 'mobile_number', 'is_active']
+        fields = ['role', 'branch', 'mobile_number', 'is_active', 'profile_photo']
 
 
 class SupplierForm(forms.ModelForm):
@@ -28,12 +29,6 @@ class SupplierForm(forms.ModelForm):
 class VehicleCompanyForm(forms.ModelForm):
     class Meta:
         model = VehicleCompany
-        fields = '__all__'
-
-
-class BatteryCapacityForm(forms.ModelForm):
-    class Meta:
-        model = BatteryCapacity
         fields = '__all__'
 
 
@@ -62,7 +57,7 @@ class PurchaseForm(forms.ModelForm):
 class PurchaseItemForm(forms.ModelForm):
     class Meta:
         model = PurchaseItem
-        fields = ['company', 'model', 'color', 'battery_capacity', 'quantity', 'purchase_price']
+        fields = ['company', 'model', 'color', 'quantity', 'purchase_price']
 
 
 class SalesForm(forms.ModelForm):
@@ -102,3 +97,30 @@ class ExpenseForm(forms.ModelForm):
             'expense_date': forms.DateInput(attrs={'type': 'date'}),
         }
 
+
+class ProfileUpdateForm(forms.ModelForm):
+    full_name = forms.CharField(max_length=150, required=True)
+    username = forms.CharField(max_length=150, required=True)
+    mobile = forms.CharField(max_length=15, required=False)
+    profile_photo = forms.ImageField(required=False)
+
+    class Meta:
+        model = User
+        fields = ['username']
+
+class BranchSettingsForm(forms.ModelForm):
+    class Meta:
+        model = Branch
+        fields = ['branch_name', 'owner_name', 'address', 'gst_number', 'phone', 'logo']
+
+class InvoiceSettingsForm(forms.ModelForm):
+    class Meta:
+        model = InvoiceSetting
+        fields = ['company_name', 'invoice_prefix', 'company_address', 'gstin', 'phone', 'terms', 'logo']
+
+class SystemUserForm(forms.ModelForm):
+    password = forms.CharField(widget=forms.PasswordInput(), required=False)
+
+    class Meta:
+        model = User
+        fields = ['username', 'first_name', 'last_name']

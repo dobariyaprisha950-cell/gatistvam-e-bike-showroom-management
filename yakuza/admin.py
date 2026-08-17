@@ -1,7 +1,6 @@
 from django.contrib import admin
-from django.utils.html import format_html
 from yakuza.models import (
-    Branch, UserProfile, Supplier, VehicleCompany, BatteryCapacity,
+    Branch, UserProfile, Supplier, VehicleCompany, 
     VehicleColor, VehicleModel, Purchase, PurchaseItem, Stock,
     Sales, Customer, ExpenseMaster, Expense, Notification, Settings, AuditLog,
     NotificationPreference, InvoiceSetting, PrinterSetting, SystemPreference, BackupHistory
@@ -12,7 +11,7 @@ from yakuza.models import (
 class BranchAdmin(admin.ModelAdmin):
     list_display = ('branch_name', 'branch_code', 'city', 'phone', 'is_active', 'created_at')
     search_fields = ('branch_name', 'branch_code', 'city', 'phone')
-    list_filter = ('is_active', 'state')
+    list_filter = ('is_active',)
 
 
 @admin.register(UserProfile)
@@ -24,8 +23,8 @@ class UserProfileAdmin(admin.ModelAdmin):
 
 @admin.register(Supplier)
 class SupplierAdmin(admin.ModelAdmin):
-    list_display = ('supplier_name', 'contact_person', 'phone', 'city', 'is_active')
-    search_fields = ('supplier_name', 'contact_person', 'phone')
+    list_display = ('supplier_name', 'is_active', 'created_at')
+    search_fields = ('supplier_name',)
     list_filter = ('is_active',)
 
 
@@ -33,12 +32,6 @@ class SupplierAdmin(admin.ModelAdmin):
 class VehicleCompanyAdmin(admin.ModelAdmin):
     list_display = ('company_name', 'is_active', 'created_at')
     search_fields = ('company_name',)
-
-
-@admin.register(BatteryCapacity)
-class BatteryCapacityAdmin(admin.ModelAdmin):
-    list_display = ('capacity_name', 'is_active')
-    search_fields = ('capacity_name',)
 
 
 @admin.register(VehicleColor)
@@ -49,9 +42,9 @@ class VehicleColorAdmin(admin.ModelAdmin):
 
 @admin.register(VehicleModel)
 class VehicleModelAdmin(admin.ModelAdmin):
-    list_display = ('model_name', 'company', 'battery_capacity', 'base_purchase_price', 'is_active')
+    list_display = ('model_name', 'company', 'base_purchase_price', 'is_active')
     search_fields = ('model_name', 'company__company_name')
-    list_filter = ('company', 'is_active', 'battery_capacity')
+    list_filter = ('company', 'is_active')
 
 
 class PurchaseItemInline(admin.TabularInline):
@@ -79,15 +72,15 @@ class StockAdmin(admin.ModelAdmin):
     list_display = ('model', 'branch', 'color', 'chassis_number', 'battery_number', 'stock_status', 'purchase_price', 'selling_price')
     search_fields = ('chassis_number', 'battery_number', 'motor_number', 'controller_number', 'model__model_name')
     list_filter = ('stock_status', 'branch', 'company', 'color')
-    readonly_fields = ('purchase_item', 'branch', 'company', 'model', 'color', 'battery_capacity', 'purchase_price')
+    readonly_fields = ('purchase_item', 'branch', 'company', 'model', 'color', 'purchase_price')
 
 
 @admin.register(Sales)
 class SalesAdmin(admin.ModelAdmin):
-    list_display = ('invoice_number', 'customer_name', 'mobile_number', 'selling_price', 'grand_total', 'payment_method', 'created_at')
-    search_fields = ('invoice_number', 'customer_name', 'mobile_number', 'aadhar_number')
+    list_display = ('invoice_no', 'customer_name', 'mobile_number', 'selling_price', 'grand_total', 'payment_method', 'created_at')
+    search_fields = ('invoice_no', 'customer_name', 'mobile_number', 'aadhar_number')
     list_filter = ('payment_method', 'created_at')
-    readonly_fields = ('invoice_number', 'subtotal', 'cgst', 'sgst', 'grand_total', 'created_by')
+    readonly_fields = ('invoice_no', 'subtotal', 'cgst', 'sgst', 'grand_total', 'created_by')
 
     def save_model(self, request, obj, form, change):
         if not change:
@@ -132,15 +125,51 @@ class SettingsAdmin(admin.ModelAdmin):
     list_display = ('company_name', 'company_phone', 'invoice_prefix', 'low_stock_threshold', 'auto_backup')
 
 
+@admin.register(InvoiceSetting)
+class InvoiceSettingAdmin(admin.ModelAdmin):
+    list_display = ('branch', 'company_name', 'gstin', 'phone', 'invoice_prefix')
+    search_fields = ('company_name', 'gstin', 'phone')
+    list_filter = ('branch',)
+
+
+@admin.register(PrinterSetting)
+class PrinterSettingAdmin(admin.ModelAdmin):
+    list_display = ('branch', 'printer_name', 'paper_size', 'copies')
+    list_filter = ('paper_size', 'branch')
+
+
+@admin.register(SystemPreference)
+class SystemPreferenceAdmin(admin.ModelAdmin):
+    list_display = ('key', 'value')
+    search_fields = ('key', 'value')
+
+
+@admin.register(NotificationPreference)
+class NotificationPreferenceAdmin(admin.ModelAdmin):
+    list_display = ('user', 'sms_alerts', 'low_stock_alerts', 'daily_summary')
+
+
 @admin.register(AuditLog)
 class AuditLogAdmin(admin.ModelAdmin):
-    list_display = ('created_at', 'username', 'role', 'branch_name', 'module', 'action', 'ip_address')
-    list_filter = ('module', 'action', 'branch_name')
-    search_fields = ('username', 'module', 'action', 'details')
-    readonly_fields = ('user', 'username', 'role', 'branch', 'branch_name', 'module', 'action', 'details', 'old_value', 'new_value', 'ip_address', 'created_at')
+    list_display = ('get_user_name', 'get_branch_name', 'module', 'timestamp')
+    list_filter = ('module', 'timestamp')
+    search_fields = ('user__username', 'user__first_name', 'user__last_name', 'module', 'action')
+    readonly_fields = ('user', 'module', 'action', 'old_value', 'new_value', 'ip_address', 'timestamp')
 
+    def get_user_name(self, obj):
+        if obj.user:
+            return obj.user.get_full_name() or obj.user.username
+        return "System"
+    get_user_name.short_description = 'User'
+
+    def get_branch_name(self, obj):
+        if obj.user and hasattr(obj.user, 'userprofile') and obj.user.userprofile.branch:
+            return obj.user.userprofile.branch.name
+        return "—"
+    get_branch_name.short_description = 'Branch'
 
 @admin.register(BackupHistory)
 class BackupHistoryAdmin(admin.ModelAdmin):
-    list_display = ('filename', 'status', 'created_by', 'created_at')
-    list_filter = ('status', 'created_at')
+    list_display = ('filename', 'branch', 'file_size', 'created_by', 'created_at')
+    list_filter = ('branch', 'created_at')
+    search_fields = ('filename',)

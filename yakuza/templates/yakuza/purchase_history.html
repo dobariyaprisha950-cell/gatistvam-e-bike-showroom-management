@@ -1,71 +1,143 @@
 {% extends 'yakuza/base.html' %}
 {% load static %}
 
-{% block title %}Purchase History - GATISTVAM E-BIKE{% endblock %}
-
-{% block page_title %}
-    <h2>Purchase History</h2>
+{% block title %}Purchase History - Gatistvam ERP{% endblock %}
+{% block page_title %}Purchase History{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/purchase_history.css' %}">
 {% endblock %}
 
 {% block content %}
-<div class="card">
-    <div class="card-header" style="justify-content: space-between;">
-        <h2 class="card-title">ALL PURCHASES</h2>
-        <a href="{% url 'yakuza:purchase' %}" class="btn-primary" style="text-decoration:none; padding: 8px 16px; font-size: 13px; border-radius: 8px;">+ New Purchase</a>
+<div class="erp-content-container">
+    <div class="erp-card filter-card">
+        <div class="filter-grid">
+            <div class="erp-search-group">
+                <svg class="erp-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" id="searchInput" class="erp-form-control" placeholder="Search by Invoice No. or Supplier...">
+            </div>
+            <div class="erp-date-group">
+                <input type="date" id="dateInput" class="erp-form-control">
+            </div>
+            <div class="erp-filter-actions">
+                <button type="button" id="resetBtn" class="erp-btn erp-btn-secondary">Reset</button>
+            </div>
+        </div>
     </div>
 
-    <!-- Filter Form -->
-    <form method="GET" action="" style="margin-bottom: 15px;">
-        <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <input type="text" name="search" placeholder="Search Invoice / Supplier..." value="{{ request.GET.search|default:'' }}" style="height:38px; font-size:12px; padding:0 12px; border-radius:8px; border:1px solid var(--border-color); width:250px;">
-            
-            <input type="date" name="from_date" value="{{ request.GET.from_date|default:'' }}" style="height:38px; font-size:12px; padding:0 8px; border-radius:8px; border:1px solid var(--border-color);">
-            <input type="date" name="to_date" value="{{ request.GET.to_date|default:'' }}" style="height:38px; font-size:12px; padding:0 8px; border-radius:8px; border:1px solid var(--border-color);">
-
-            <button type="submit" class="btn-primary" style="height:38px; padding:0 16px; font-size:12px; border-radius:8px;">Filter</button>
-            <a href="{% url 'yakuza:purchase_history' %}" class="btn-secondary" style="height:38px; padding:8px 16px; font-size:12px; border-radius:8px; text-decoration:none; display:inline-block; line-height:20px;">Reset</a>
+    <div class="erp-card table-card">
+        <div class="erp-table-responsive">
+            <table class="erp-table" id="purchaseTable">
+                <thead>
+                    <tr>
+                        <th>Purchase Invoice</th>
+                        <th>Invoice Number</th>
+                        <th>Purchase Date</th>
+                        <th>Supplier</th>
+                        <th>Total Quantity</th>
+                        <th>Total Amount</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="purchaseTableBody">
+                    {% for purchase in purchases %}
+                    {% with total_qty=purchase.items.all|length total_amt=purchase.items.all %}
+                    <!-- We compute aggregate items quantity & amount -->
+                    {% endwith %}
+                    {% with qty_sum=purchase.total_qty_sum amt_sum=purchase.total_amt_sum %}
+                    <tr data-invoice="{{ purchase.invoice_number|lower }}" data-supplier="{{ purchase.supplier.supplier_name|lower }}" data-date="{{ purchase.purchase_date|date:'Y-m-d' }}">
+                        <td>
+                            {% if purchase.invoice_photo %}
+                            <div class="erp-thumbnail-wrap" data-fullimg="{{ purchase.invoice_photo.url }}">
+                                <img src="{{ purchase.invoice_photo.url }}" alt="Invoice" style="width:100%; height:100%; object-fit: cover; border-radius: 3px;">
+                            </div>
+                            {% else %}
+                            <div class="erp-thumbnail-wrap">
+                                <svg class="erp-thumb-placeholder" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td><span class="erp-fw-medium">{{ purchase.invoice_number }}</span></td>
+                        <td>{{ purchase.purchase_date|date:"d M Y" }}</td>
+                        <td>{{ purchase.supplier.supplier_name }}</td>
+                        <td>{{ purchase.computed_qty }} Items</td>
+                        <td class="erp-amount">₹ {{ purchase.computed_total|floatformat:2 }}</td>
+                        <td>
+                            <button type="button" class="erp-btn erp-btn-sm erp-btn-primary view-btn" 
+                                data-invoiceno="{{ purchase.invoice_number }}" 
+                                data-date="{{ purchase.purchase_date|date:'d M Y' }}" 
+                                data-supplier="{{ purchase.supplier.supplier_name }}" 
+                                data-qty="{{ purchase.computed_qty }} Items" 
+                                data-amount="₹ {{ purchase.computed_total|floatformat:2 }}"
+                                {% if purchase.invoice_photo %}data-img="{{ purchase.invoice_photo.url }}"{% endif %}>
+                                View
+                            </button>
+                        </td>
+                    </tr>
+                    {% endwith %}
+                    {% empty %}
+                    <tr>
+                        <td colspan="7">
+                            <div class="erp-no-results">No purchase records found in the database.</div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
-    </form>
-
-    <div class="table-responsive">
-        <table class="vehicle-table">
-            <thead>
-                <tr>
-                    <th>Purchase Number</th>
-                    <th>Purchase Date</th>
-                    <th>Supplier</th>
-                    <th>Branch</th>
-                    <th>Invoice Number</th>
-                    <th>Total Qty</th>
-                    <th>Created Date</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody id="historyTableBody">
-                {% for purchase in purchases %}
-                <tr data-invoice="{{ purchase.invoice_number }}" 
-                    data-date="{{ purchase.purchase_date|date:'Y-m-d' }}" 
-                    data-supplier="{{ purchase.supplier.supplier_name }}" 
-                    data-total="{{ purchase.grand_total|default:0 }}">
-                    <td><strong>{{ purchase.purchase_number }}</strong></td>
-                    <td>{{ purchase.purchase_date|date:"d-m-Y" }}</td>
-                    <td>{{ purchase.supplier.supplier_name }}</td>
-                    <td>{{ purchase.branch.name }}</td>
-                    <td>{{ purchase.invoice_number }}</td>
-                    <td><span class="badge">{{ purchase.total_quantity }} NOS</span></td>
-                    <td>{{ purchase.created_at|date:"d-m-Y H:i" }}</td>
-                    <td>
-                        <a href="{% url 'yakuza:purchase-detail' purchase.id %}" class="btn-manage" style="text-decoration:none; display:inline-block; margin-right:4px;">View</a>
-                        <a href="{% url 'yakuza:purchase-delete' purchase.id %}" class="btn-manage" style="text-decoration:none; color:var(--danger-color); border-color:var(--danger-color); display:inline-block;">Delete</a>
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 20px;">No purchase records found.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div id="noResults" class="erp-no-results" style="display: none;">
+            No purchase records found matching your search criteria.
+        </div>
     </div>
 </div>
+
+<div class="erp-modal-backdrop" id="purchaseModal" style="display: none;">
+    <div class="erp-modal-dialog">
+        <div class="erp-modal-content">
+            <div class="erp-modal-header">
+                <h3 class="erp-modal-title">Purchase Details Preview</h3>
+                <button type="button" class="erp-modal-close" id="modalCloseBtn">&times;</button>
+            </div>
+            <div class="erp-modal-body">
+                <div class="erp-modal-grid">
+                    <div class="erp-modal-details">
+                        <div class="erp-detail-group">
+                            <span class="erp-detail-label">Invoice Number</span>
+                            <span class="erp-detail-value" id="modalInvoiceNo">-</span>
+                        </div>
+                        <div class="erp-detail-group">
+                            <span class="erp-detail-label">Purchase Date</span>
+                            <span class="erp-detail-value" id="modalDate">-</span>
+                        </div>
+                        <div class="erp-detail-group">
+                            <span class="erp-detail-label">Supplier</span>
+                            <span class="erp-detail-value" id="modalSupplier">-</span>
+                        </div>
+                        <div class="erp-detail-group">
+                            <span class="erp-detail-label">Total Quantity</span>
+                            <span class="erp-detail-value" id="modalQty">-</span>
+                        </div>
+                        <div class="erp-detail-group">
+                            <span class="erp-detail-label">Total Amount</span>
+                            <span class="erp-detail-value erp-text-primary" id="modalAmount">-</span>
+                        </div>
+                    </div>
+                    <div class="erp-modal-preview">
+                        <span class="erp-detail-label mb-2">Invoice Document Preview</span>
+                        <div class="erp-preview-container" id="modalPreviewBox">
+                            <svg class="erp-preview-placeholder-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                            <span class="erp-preview-text">No Invoice Image Uploaded</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="erp-modal-footer">
+                <button type="button" class="erp-btn erp-btn-secondary" id="modalFooterCloseBtn">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/purchase_history.js' %}"></script>
 {% endblock %}

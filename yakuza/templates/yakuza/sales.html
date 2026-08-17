@@ -12,90 +12,143 @@
 {% endblock %}
 
 {% block content %}
-<!-- PDF Generate કરવા માટેની html2pdf Library -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+<!-- CUSTOM TOAST NOTIFICATION -->
+<div id="toastNotification" class="toast-notification">
+    <i class="fas fa-exclamation-circle"></i>
+    <span id="toastMessage">Please fill in all required fields correctly!</span>
+</div>
 
 <form id="salesForm" method="POST" action="{% url 'yakuza:sales' %}">
     {% csrf_token %}
+    <input type="hidden" name="current_sale_id" id="current_sale_id" value="{{ edit_sale.id|default:'' }}">
+    
     <div class="sales-page-container">
         <!-- Main Workspace -->
         <div class="sales-workspace">
             
-            <!-- LEFT COLUMN: Customer & Vehicle Info -->
+            <!-- LEFT COLUMN: Combined Form Card -->
             <div class="left-column">
-                <div class="card">
+                <div class="card compact-card">
                     <div class="card-body">
                         <div class="grid-2">
-                            <!-- Customer Info -->
+                            <!-- Row 1: Customer Name & Mobile Number -->
                             <div class="form-group">
                                 <label for="customerName">Customer Name <span class="required">*</span></label>
                                 <div class="input-icon-wrapper">
                                     <i class="input-icon fas fa-user"></i>
-                                    <input type="text" name="customer_name" id="customerName" placeholder="Customer full name" required>
+                                    <input type="text" name="customer_name" id="customerName" placeholder="Enter full name" value="{{ edit_sale.customer_name|default:'' }}" required>
                                 </div>
                             </div>
 
                             <div class="form-group">
                                 <label for="contactNumber">Mobile Number <span class="required">*</span></label>
                                 <div class="input-icon-wrapper">
-                                    <i class="input-icon fas fa-phone"></i>
-                                    <input type="tel" name="contact_number" id="contactNumber" placeholder="Enter 10-digit mobile" maxlength="10" required>
+                                    <i class="input-icon fas fa-mobile-alt"></i>
+                                    <input type="tel" name="contact_number" id="contactNumber" placeholder="10-digit mobile number" maxlength="10" value="{{ edit_sale.mobile_number|default:'' }}" required>
                                 </div>
                             </div>
 
+                            <!-- Row 2: Aadhaar Card Number & Model Name -->
                             <div class="form-group">
-                                <label for="aadharNumber">Aadhaar Card Number</label>
+                                <label for="aadharNumber">Aadhaar Card Number <span class="required">*</span></label>
                                 <div class="input-icon-wrapper">
                                     <i class="input-icon fas fa-id-card"></i>
-                                    <input type="text" name="aadhar_number" id="aadharNumber" placeholder="Enter 12-digit Aadhaar Number" maxlength="12">
+                                    <input type="text" name="aadhar_number" id="aadharNumber" placeholder="12-digit Aadhaar Number" maxlength="12" value="{{ edit_sale.aadhar_number|default:'' }}" required>
                                 </div>
                             </div>
 
-                            <!-- Vehicle Details -->
                             <div class="form-group">
                                 <label for="modelName">Model Name <span class="required">*</span></label>
-                                <input type="text" name="model_name" id="modelName" placeholder="e.g. SPARROW PLUSH 72V" required>
+                                <div class="input-icon-wrapper">
+                                    <i class="input-icon fas fa-motorcycle"></i>
+                                    <select name="model_name" id="modelName" class="form-control-select" required>
+                                        <option value="">-- Select Model --</option>
+                                        {% for m in models %}
+                                            <option value="{{ m.model_name }}" 
+                                                {% if edit_sale and edit_sale.stock and edit_sale.stock.model and edit_sale.stock.model.model_name == m.model_name %}selected{% endif %}>
+                                                {{ m.model_name }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
                             </div>
 
+                            <!-- Row 3: Vehicle Color & Base Price -->
                             <div class="form-group">
-                                <label for="vehicleColor">Color</label>
-                                <input type="text" name="vehicle_color" id="vehicleColor" placeholder="e.g. Red / Black">
+                                <label for="vehicleColor">Vehicle Color <span class="required">*</span></label>
+                                <div class="input-icon-wrapper">
+                                    <i class="input-icon fas fa-palette"></i>
+                                    <select name="vehicle_color" id="vehicleColor" class="form-control-select" required>
+                                        <option value="">-- Select Color --</option>
+                                        {% for c in colors %}
+                                            <option value="{{ c.color_name }}" 
+                                                {% if edit_sale and edit_sale.stock and edit_sale.stock.color and edit_sale.stock.color.color_name == c.color_name %}
+                                                    selected
+                                                {% elif not edit_sale and c.color_name|lower == 'black' %}
+                                                    selected
+                                                {% endif %}>
+                                                {{ c.color_name }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
                             </div>
 
                             <div class="form-group">
                                 <label for="price">Base Price (Excl. GST) (₹) <span class="required">*</span></label>
-                                <input type="number" name="price" id="price" value="0" min="0" step="any" required>
+                                <div class="input-icon-wrapper">
+                                    <i class="input-icon fas fa-rupee-sign"></i>
+                                    <input type="number" name="price" id="price" value="{% if edit_sale %}{{ edit_sale.selling_price }}{% else %}0{% endif %}" min="0" step="any" required>
+                                </div>
                             </div>
 
+                            <!-- Row 4: Chassis / Frame No. & Battery No. -->
                             <div class="form-group">
                                 <label for="chassisNumber">Chassis / Frame No. <span class="required">*</span></label>
-                                <input type="text" name="chassis_number" id="chassisNumber" placeholder="Enter Chassis No." required>
+                                <div class="input-icon-wrapper">
+                                    <i class="input-icon fas fa-barcode"></i>
+                                    <input type="text" name="chassis_number" id="chassisNumber" list="chassisOptions" placeholder="Chassis Number" value="{{ edit_sale.stock.chassis_number|default:'' }}" required>
+                                    <datalist id="chassisOptions"></datalist>
+                                </div>
                             </div>
 
                             <div class="form-group">
-                                <label for="batteryNumber">Battery No.</label>
-                                <input type="text" name="battery_number" id="batteryNumber" placeholder="Battery Number">
+                                <label for="batteryNumber">Battery No. <span class="required">*</span></label>
+                                <div class="input-icon-wrapper">
+                                    <i class="input-icon fas fa-car-battery"></i>
+                                    <input type="text" name="battery_number" id="batteryNumber" placeholder="Battery Number" value="{{ edit_sale.stock.battery_number|default:'' }}" required>
+                                </div>
+                            </div>
+
+                            <!-- Row 5: Motor No. & Controller No. -->
+                            <div class="form-group">
+                                <label for="motorNumber">Motor No. <span class="required">*</span></label>
+                                <div class="input-icon-wrapper">
+                                    <i class="input-icon fas fa-cogs"></i>
+                                    <input type="text" name="motor_number" id="motorNumber" placeholder="Motor Number" value="{{ edit_sale.stock.motor_number|default:'' }}" required>
+                                </div>
                             </div>
 
                             <div class="form-group">
-                                <label for="motorNumber">Motor No.</label>
-                                <input type="text" name="motor_number" id="motorNumber" placeholder="Motor Number">
+                                <label for="controllerNumber">Controller No. <span class="required">*</span></label>
+                                <div class="input-icon-wrapper">
+                                    <i class="input-icon fas fa-microchip"></i>
+                                    <input type="text" name="controller_number" id="controllerNumber" placeholder="Controller Number" value="{{ edit_sale.stock.controller_number|default:'' }}" required>
+                                </div>
                             </div>
 
-                            <div class="form-group">
-                                <label for="controllerNumber">Controller No.</label>
-                                <input type="text" name="controller_number" id="controllerNumber" placeholder="Controller Number">
-                            </div>
-
+                            <!-- Row 6: Payment Method -->
                             <div class="form-group full-width">
                                 <label for="paymentType">Payment Method <span class="required">*</span></label>
                                 <div class="input-icon-wrapper">
                                     <i class="input-icon fas fa-credit-card"></i>
-                                    <select name="payment_type" id="paymentType" class="form-control-select">
-                                        <option value="Cash">Cash</option>
-                                        <option value="UPI">UPI</option>
-                                        <option value="EMI">EMI</option>
-                                        <option value="Card">Card</option>
+                                    <select name="payment_type" id="paymentType" class="form-control-select" required>
+                                        <option value="Cash" {% if edit_sale and edit_sale.payment_method|upper == "CASH" %}selected{% endif %}>Cash</option>
+                                        <option value="UPI" {% if edit_sale and edit_sale.payment_method|upper == "UPI" %}selected{% endif %}>UPI</option>
+                                        <option value="EMI" {% if edit_sale and edit_sale.payment_method|upper == "EMI" %}selected{% endif %}>EMI</option>
+                                        <option value="Card" {% if edit_sale and edit_sale.payment_method|upper == "CARD" %}selected{% endif %}>Card</option>
                                     </select>
                                 </div>
                             </div>
@@ -106,7 +159,7 @@
 
             <!-- RIGHT COLUMN: Billing Summary -->
             <div class="right-column">
-                <div class="card">
+                <div class="card compact-card sticky-card">
                     <div class="card-header clean-header">
                         <i class="fas fa-file-invoice-dollar header-icon"></i>
                         <h3>Billing Summary</h3>
@@ -114,31 +167,35 @@
                     <div class="card-body billing-summary-body">
                         <div class="summary-line">
                             <span>Subtotal</span>
-                            <span id="lblSubtotal">₹ 0.00</span>
+                            <span id="lblSubtotal" class="summary-value">₹ 0.00</span>
                         </div>
-                        <div class="summary-line align-center">
+                        <div class="summary-line">
                             <label>SGST (2.5%):</label>
-                            <span id="lblSgstAmount">₹ 0.00</span>
+                            <span id="lblSgstAmount" class="summary-value">₹ 0.00</span>
                         </div>
-                        <div class="summary-line align-center">
+                        <div class="summary-line">
                             <label>CGST (2.5%):</label>
-                            <span id="lblCgstAmount">₹ 0.00</span>
+                            <span id="lblCgstAmount" class="summary-value">₹ 0.00</span>
                         </div>
                         <div class="summary-line align-center">
-                            <label for="discountInput">Discount (₹)</label>
-                            <input type="number" name="discount" id="discountInput" class="small-input" value="0" min="0">
+                            <label for="discountInput">Discount (₹):</label>
+                            <input type="number" name="discount" id="discountInput" class="small-input" value="{{ edit_sale.discount|default:'0' }}" min="0">
                         </div>
+                        
                         <hr class="summary-divider">
+                        
                         <div class="summary-line grand-total-line">
                             <span>Grand Total</span>
-                            <span id="lblGrandTotal">₹ 0.00</span>
+                            <span id="lblGrandTotal" class="grand-total-value">₹ 0.00</span>
                         </div>
-                        <button type="button" id="btnSaveSale" class="btn btn-primary full-width-btn" disabled>
-                            GENERATE BILL & PREVIEW
+                        
+                        <button type="button" id="btnSaveSale" class="btn btn-primary full-width-btn">
+                            <i class="fas fa-receipt"></i> GENERATE BILL & PREVIEW
                         </button>
                     </div>
                 </div>
             </div>
+
         </div>
     </div>
 </form>
@@ -147,7 +204,7 @@
 <div class="modal-overlay" id="invoiceModalOverlay">
     <div class="modal-dialog">
         <div class="invoice-modal-content-wrapper">
-            <button type="button" class="invoice-modal-close-icon" id="btnCloseIcon" aria-label="Close">&times;</button>
+            <button type="button" class="invoice-modal-close-icon" id="btnCloseIcon" aria-label="Close Modal">&times;</button>
 
             <!-- PRINTABLE INVOICE AREA -->
             <div class="invoice-preview-wrapper" id="printable-invoice-container">
@@ -155,15 +212,38 @@
                     <!-- Header -->
                     <div class="bill-header">
                         <div class="header-left">
-                            <h2 class="comp-title">Gatistvam Electric Vehicle</h2>
-                            <p class="comp-subtext">Gatistvam E-Bike, G/15, Ashta Capital, Chobari Road, Junagadh - 362001</p>
-                            <p class="comp-contact">Mo. 8488885733</p>
-                            <p class="comp-gst">GST NO. 24CURPK4247E1Z1</p>
+                            <h2 class="comp-title">
+                                {{ invoice_setting.company_name|default:sys_settings.company_name|default:"Yakuza EV Showroom" }}
+                            </h2>
+                            <p class="comp-subtext">
+                                {{ invoice_setting.company_address|default:branch.address|default:sys_settings.company_address|default:"" }}
+                            </p>
+                            {% if invoice_setting.phone or sys_settings.company_phone or branch.phone %}
+                            <p class="comp-contact">
+                                Mo. {{ invoice_setting.phone|default:branch.phone|default:sys_settings.company_phone }}
+                            </p>
+                            {% endif %}
+                            {% if invoice_setting.email or sys_settings.company_email or branch.email %}
+                            <p class="comp-email">
+                                Email: {{ invoice_setting.email|default:branch.email|default:sys_settings.company_email }}
+                            </p>
+                            {% endif %}
+                            {% if invoice_setting.gstin or sys_settings.gstin or branch.gst_number %}
+                            <p class="comp-gst">
+                                GST NO. {{ invoice_setting.gstin|default:branch.gst_number|default:sys_settings.gstin }}
+                            </p>
+                            {% endif %}
                         </div>
                         <div class="header-right">
-                            <img src="{% static 'images/logo.png' %}" alt="Logo" class="bill-logo">
+                            {% if invoice_setting.logo %}
+                                <img src="{{ invoice_setting.logo.url }}" alt="Logo" class="bill-logo">
+                            {% elif branch and branch.logo %}
+                                <img src="{{ branch.logo.url }}" alt="Logo" class="bill-logo">
+                            {% else %}
+                                <img src="{% static 'images/logo.png' %}" alt="Logo" class="bill-logo">
+                            {% endif %}
                             <div class="meta-info">
-                                <p><strong>Invoice No.:</strong> <span id="previewInvoiceNo">{{ auto_invoice_no|default:"GEV/JND/0001" }}</span></p>
+                                <p><strong>Invoice No.:</strong> <span id="previewInvoiceNo">{{ auto_invoice_no }}</span></p>
                                 <p><strong>Date:</strong> <span id="previewInvoiceDate"></span></p>
                             </div>
                         </div>
@@ -175,39 +255,41 @@
                             <strong>Customer Name:</strong> <span id="previewCustomerName">N/A</span>
                         </div>
                         <div class="customer-info-grid">
-                            <div><strong>Billing Address:</strong> JUNAGADH</div>
-                            <div><strong>Aadhaar No:</strong> <span id="previewAadhaar">XXXX XXXX XXXX</span></div>
+                            <div><strong>Billing Address:</strong> {{ branch_name }}</div>
+                            <div><strong>Aadhaar No:</strong> <span id="previewAadhaar">[Aadhaar Redacted]</span></div>
                             <div><strong>Contact No.:</strong> <span id="previewContactNo">N/A</span></div>
                         </div>
                     </div>
 
                     <!-- Items Table -->
-                    <table class="bill-table">
-                        <thead>
-                            <tr>
-                                <th style="width: 7%;">Sr.</th>
-                                <th style="width: 32%;">Item Name</th>
-                                <th style="width: 12%;">HSN/SAC</th>
-                                <th style="width: 9%;">Qty</th>
-                                <th style="width: 6%;">Unit</th>
-                                <th style="width: 12%;">Price/Unit</th>
-                                <th style="width: 10%;">GST (5%)</th>
-                                <th style="width: 12%;">Amount</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td class="text-center">1</td>
-                                <td><span id="previewModelName">N/A</span> (<span id="previewColor">N/A</span>)</td>
-                                <td class="text-center">87116020</td>
-                                <td class="text-center">1</td>
-                                <td class="text-center">NOS</td>
-                                <td class="text-right" id="previewPriceUnit">0.00</td>
-                                <td class="text-right" id="previewGstUnit">0.00</td>
-                                <td class="text-right" id="previewTotalAmount">0.00</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    <div class="table-responsive-wrapper">
+                        <table class="bill-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 7%;">Sr.</th>
+                                    <th style="width: 32%;">Item Name</th>
+                                    <th style="width: 12%;">HSN/SAC</th>
+                                    <th style="width: 9%;">Qty</th>
+                                    <th style="width: 6%;">Unit</th>
+                                    <th style="width: 12%;">Price/Unit</th>
+                                    <th style="width: 10%;">GST (5%)</th>
+                                    <th style="width: 12%;">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="text-center">1</td>
+                                    <td><span id="previewModelName">N/A</span> (<span id="previewColor">N/A</span>)</td>
+                                    <td class="text-center">87116020</td>
+                                    <td class="text-center">1</td>
+                                    <td class="text-center">NOS</td>
+                                    <td class="text-right" id="previewPriceUnit">0.00</td>
+                                    <td class="text-right" id="previewGstUnit">0.00</td>
+                                    <td class="text-right" id="previewTotalAmount">0.00</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
 
                     <!-- Vehicle Specs Box -->
                     <div class="vehicle-specs-box">
@@ -231,7 +313,7 @@
                     <div class="bill-footer-flex">
                         <div class="payment-box">
                             <div class="payment-header-bar">PAYMENT METHOD</div>
-                            <div class="payment-val"><span id="previewPaymentMode">CASH</span></div>
+                            <div class="payment-val"><span id="previewPaymentMode">CASH</span>: ₹ <span id="previewPaymentAmount">0.00</span></div>
                         </div>
                         <div class="totals-calculation-box">
                             <p>Sub Total: ₹ <span id="previewSubtotal">0.00</span></p>
@@ -247,14 +329,25 @@
                         <div class="terms-box">
                             <strong>Terms & Conditions</strong>
                             <ul>
-                                <li>Goods once sold will not be taken back or exchanged.</li>
-                                <li>Warranty as per manufacturer policy only.</li>
-                                <li>Battery warranty subject to usage and charging conditions.</li>
-                                <li>Any physical damage is not covered under warranty.</li>
+                                {% if invoice_setting.terms %}
+                                    <li style="white-space: pre-line; list-style-type: disc; margin-left: 15px;">{{ invoice_setting.terms }}</li>
+                                {% else %}
+                                    <li>Goods once sold will not be taken back or exchanged.</li>
+                                    <li>Warranty as per manufacturer policy only.</li>
+                                    <li>Battery warranty subject to usage and charging conditions.</li>
+                                    <li>Any physical damage is not covered under warranty.</li>
+                                {% endif %}
                             </ul>
                         </div>
                         <div class="signature-box">
-                            <div class="sig-space-stamp"></div>
+                            <div class="sig-space-stamp">
+                                {% if invoice_setting.authorized_signature %}
+                                    <img src="{{ invoice_setting.authorized_signature.url }}" alt="Authorized Signature" style="max-height: 45px; margin-right: 10px;">
+                                {% endif %}
+                                {% if invoice_setting.company_seal %}
+                                    <img src="{{ invoice_setting.company_seal.url }}" alt="Company Seal" style="max-height: 50px;">
+                                {% endif %}
+                            </div>
                             <div class="seal-text">Authorized Seal & Signature</div>
                         </div>
                     </div>
@@ -263,14 +356,25 @@
 
             <!-- MODAL ACTION BUTTONS -->
             <div class="popup-actions-v2">
-                <button type="button" class="btn-whatsapp-v2" id="btnWhatsAppShare"><i class="fab fa-whatsapp"></i> Share PDF on WhatsApp</button>
-                <button type="button" class="btn-print-v2" id="btnPrintInvoice"><i class="fas fa-print"></i> Print Invoice</button>
-                <button type="button" class="btn-primary" id="btnSubmitForm"><i class="fas fa-check-circle"></i> Confirm & Save to DB</button>
-                <button type="button" class="btn-close-v2" id="btnClosePopupV2">Close</button>
+                <button type="button" class="btn-action btn-print-v2" id="btnPrintInvoice">
+                    <i class="fas fa-print"></i> PRINT
+                </button>
+                <button type="button" class="btn-action btn-whatsapp-v2" id="btnWhatsAppShare">
+                    <i class="fab fa-whatsapp"></i> SHARE ON WHATSAPP
+                </button>
+                <button type="button" class="btn-action btn-edit-v2" id="btnEditSale">
+                    <i class="fas fa-edit"></i> EDIT
+                </button>
+                <button type="button" class="btn-action btn-ok-v2" id="btnOkInvoice">
+                    <i class="fas fa-check-circle"></i> OK
+                </button>
             </div>
+            
         </div>
     </div>
 </div>
+{% endblock %}
 
-<script src="{% static 'js/sales.js' %}?v=2"></script>
+{% block extra_js %}
+<script src="{% static 'js/sales.js' %}?v=7"></script>
 {% endblock %}

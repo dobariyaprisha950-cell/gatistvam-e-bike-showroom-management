@@ -10,104 +10,79 @@
 
 {% block content %}
 <div class="live-stock-wrapper">
+    <!-- Toolbar: Search, Color, and Reset in EXACT horizontal row -->
     <div class="live-stock-toolbar">
-        <div class="live-stock-filters">
-            <!-- Dynamic Branch Dropdown -->
-            <div class="live-stock-filter-item">
-                <label class="live-stock-label">Branch</label>
-                <div class="live-stock-select-wrap">
-                    <select class="live-stock-select" id="branchFilter">
-                        <option value="">All Branches</option>
-                        {% for branch in branches %}
-                            <option value="{{ branch.branch_code }}">{{ branch.branch_name }}</option>
-                        {% endfor %}
-                    </select>
-                    <i class="fa-solid fa-chevron-down select-arrow-icon"></i>
-                </div>
+        <div class="live-stock-filters-row">
+            <!-- 1. Search Bar -->
+            <div class="live-stock-search-wrap">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="liveStockSearch" class="live-stock-search-input" placeholder="Search vehicles or models..." autocomplete="off">
             </div>
 
-            <!-- Search Bar -->
-            <div class="live-stock-filter-item search-item">
-                <label class="live-stock-label">Search</label>
-                <div class="live-stock-search-wrap">
-                    <i class="fa-solid fa-magnifying-glass"></i>
-                    <input type="text" class="live-stock-search-input" id="vehicleSearch" placeholder="Search vehicles or models...">
-                </div>
+            <!-- 2. Dynamic Database Color Filter -->
+            <div class="live-stock-select-wrap">
+                <select class="live-stock-select" id="colorFilter">
+                    <option value="">All Colors</option>
+                    {% for color in colors %}
+                        <option value="{{ color.id }}">{{ color.color_name }}</option>
+                    {% endfor %}
+                </select>
+                <i class="fa-solid fa-chevron-down select-arrow-icon"></i>
             </div>
 
-            <!-- Status Dropdown -->
-            <div class="live-stock-filter-item">
-                <label class="live-stock-label">Status</label>
-                <div class="live-stock-select-wrap">
-                    <select class="live-stock-select" id="statusFilter">
-                        <option value="">All Statuses</option>
-                        <option value="AVAILABLE">Available</option>
-                        <option value="RESERVED">Reserved</option>
-                        <option value="SOLD">Sold</option>
-                    </select>
-                    <i class="fa-solid fa-chevron-down select-arrow-icon"></i>
-                </div>
-            </div>
-        </div>
-
-        <div class="live-stock-action-wrap">
-            <button class="live-stock-add-btn" id="addVehicleBtn">
-                <i class="fa-solid fa-plus"></i> Add New Stock
+            <!-- 3. Reset Button -->
+            <button type="button" class="live-stock-reset-btn" id="resetFiltersBtn">
+                <i class="fa-solid fa-rotate-right"></i> Reset
             </button>
         </div>
     </div>
 
+    <!-- Stock Table Container -->
     <div class="live-stock-container">
+        <!-- Header with exactly 5 equal columns -->
         <div class="live-stock-header-row">
-            <div class="lh-col">Vehicle</div>
+            <div class="lh-col lh-col-photo">Vehicle Photo</div>
             <div class="lh-col">Model</div>
             <div class="lh-col">Color</div>
+            <div class="lh-col">Quantity</div>
             <div class="lh-col">Price</div>
-            <div class="lh-col">Status</div>
-            <div class="lh-col">Actions</div>
         </div>
 
+        <!-- Grouped Database Stock List -->
         <div class="live-stock-list" id="vehicleList">
-            {% for item in stock_items %}
-            <div class="vehicle-row" data-status="{{ item.stock_status }}" data-branch="{{ item.branch.branch_code }}" data-id="{{ item.id }}">
-                <div class="vehicle-col vehicle-image-name-col">
+            {% for item in grouped_items %}
+            <div class="vehicle-row" data-color-id="{{ item.color_id }}" data-color-name="{{ item.color_name|lower }}" data-model-name="{{ item.model_name|lower }}" data-company-name="{{ item.company_name|lower }}">
+                <div class="vehicle-col vehicle-image-col">
                     <div class="vehicle-image">
-                        <img src="{% static 'images/scooter.jpeg' %}" alt="{{ item.company.company_name }}">
+                        <img src="{% static 'images/scooter.jpeg' %}" alt="{{ item.model_name }}">
                     </div>
-                    <span class="vehicle-name-text">{{ item.company.company_name }}</span>
                 </div>
                 <div class="vehicle-col">
-                    <span class="vehicle-model-text">{{ item.model.model_name }}</span>
+                    <span class="vehicle-model-text">{{ item.model_name }}</span>
                 </div>
                 <div class="vehicle-col">
                     <div class="vehicle-color-wrap">
-                        <!-- color_hex ની ભૂલ ઉકેલાઈ ગઈ -->
-                        <span class="color-dot" style="background-color: #2563eb;"></span>
-                        <span class="color-text">{{ item.color.color_name }}</span>
+                        <span class="color-text">{{ item.color_name }}</span>
                     </div>
                 </div>
                 <div class="vehicle-col">
-                    <span class="vehicle-price-text">₹{% if item.selling_price %}{{ item.selling_price }}{% else %}{{ item.purchase_price }}{% endif %}</span>
+                    <span class="vehicle-quantity-text">{{ item.quantity }}</span>
                 </div>
                 <div class="vehicle-col">
-                    <span class="vehicle-status-badge {{ item.stock_status|lower }}">
-                        <span class="status-dot"></span> {{ item.get_stock_status_display }}
-                    </span>
-                </div>
-                <div class="vehicle-col vehicle-actions-col">
-                    <button class="action-btn view-btn" title="View"><i class="fa-regular fa-eye"></i></button>
-                    <button class="action-btn edit-btn" title="Edit"><i class="fa-regular fa-pen-to-square"></i></button>
-                    <button class="action-btn delete-btn" title="Delete"><i class="fa-regular fa-trash-can"></i></button>
+                    <span class="vehicle-price-text">₹{{ item.price }}</span>
                 </div>
             </div>
             {% empty %}
-            <div style="padding: 24px; text-align: center; color: #6b7280;">
-                No stock items found
+            <div class="no-stock-empty">
+                No stock available
             </div>
             {% endfor %}
+            <div class="no-stock-empty js-no-match" id="noMatchMessage" style="display: none;">
+                No stock available
+            </div>
         </div>
     </div>
 </div>
 
-<script src="{% static 'yakuza/live_stock.js' %}"></script>
+<script src="{% static 'js/live_stock.js' %}"></script>
 {% endblock %}

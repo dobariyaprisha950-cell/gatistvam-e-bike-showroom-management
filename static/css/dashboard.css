@@ -23,6 +23,16 @@ body {
     overflow-x: hidden;
 }
 
+.mobile-nav-toggle {
+    display: none;
+    border: 0;
+    background: transparent;
+    color: var(--text-dark);
+    font-size: 1.15rem;
+    padding: 0.35rem;
+    cursor: pointer;
+}
+
 /* --- Sidebar Layout with Gradient & Wave Background --- */
 .sidebar {
     width: 260px;
@@ -259,7 +269,7 @@ body {
 /* Custom Thin Scrollbar for Sidebar */
 .sidebar::-webkit-scrollbar,
 .sidebar-menu::-webkit-scrollbar {
-    width: 4px; /* Scrollbar ની જાડાઈ (પાતળી કરવા માટે) */
+    width: 4px;
 }
 
 .sidebar::-webkit-scrollbar-track,
@@ -269,7 +279,7 @@ body {
 
 .sidebar::-webkit-scrollbar-thumb,
 .sidebar-menu::-webkit-scrollbar-thumb {
-    background: #cbd5e1; /* Scrollbar નો કલર */
+    background: #cbd5e1;
     border-radius: 10px;
 }
 
@@ -482,7 +492,7 @@ body {
     width: 38px;
     height: 38px;
     border-radius: 50%;
-    background: #8dd1f3; /* Google Blue Style */
+    background: #8dd1f3;
     color: #ffffff;
     font-size: 1.1rem;
     font-weight: 700;
@@ -638,6 +648,7 @@ body {
     align-items: center;
     justify-content: center;
     font-size: 13px;
+    flex-shrink: 0;
 }
 
 .metric-icon.blue { background: #e0f2fe; color: #0284c7; }
@@ -651,6 +662,8 @@ body {
     font-weight: 600;
     color: var(--text-muted);
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .metric-value {
@@ -658,6 +671,7 @@ body {
     font-weight: 700;
     color: var(--text-dark);
     margin-bottom: 6px;
+    word-break: break-word;
 }
 
 .metric-footer {
@@ -856,10 +870,12 @@ body {
     justify-content: center;
     color: var(--text-muted);
     font-size: 13px;
+    flex-shrink: 0;
 }
 
 .alert-info {
     flex: 1;
+    min-width: 0;
 }
 
 .alert-info h4 {
@@ -869,7 +885,7 @@ body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 140px;
+    max-width: 100%;
 }
 
 .alert-info p {
@@ -884,6 +900,7 @@ body {
     font-weight: 700;
     padding: 3px 8px;
     border-radius: 6px;
+    flex-shrink: 0;
 }
 
 /* --- Bottom Grid (Tables) --- */
@@ -957,6 +974,7 @@ body {
     justify-content: center;
     color: var(--primary);
     font-size: 13px;
+    flex-shrink: 0;
 }
 
 .item-flex h4 {
@@ -1000,18 +1018,126 @@ body {
     }
 }
 
-@media (max-width: 768px) {
-    .sidebar {
-        width: 70px;
+@media (max-width: 1024px) {
+    .metrics-grid {
+        grid-template-columns: repeat(3, 1fr);
     }
-    .sidebar .brand-title-group,
-    .sidebar .sidebar-menu li a span,
-    .sidebar .sidebar-user-profile,
-    .sidebar .sidebar-wave {
-        display: none;
+    .topbar {
+        padding: 0 16px;
+    }
+}
+
+@media (max-width: 768px) {
+    .metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .sidebar {
+        width: 260px;
+        transform: translateX(-100%);
+        transition: transform 0.2s ease;
+        box-shadow: 8px 0 24px rgba(15, 23, 42, 0.15);
+    }
+    .sidebar.mobile-open {
+        transform: translateX(0);
     }
     .main-content {
-        margin-left: 70px;
-        width: calc(100% - 70px);
+        margin-left: 0;
+        width: 100%;
+        min-width: 0;
     }
+    .mobile-nav-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .topbar {
+        height: auto !important;
+        min-height: 50px !important;
+        max-height: none !important;
+        padding: 8px 12px;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    .topbar-left,
+    .topbar-right {
+        min-width: 0;
+    }
+    .topbar-left {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .topbar-left h2 {
+        font-size: 1rem;
+    }
+    .topbar-right {
+        gap: 6px;
+        margin-left: auto;
+    }
+    #superAdminBranchSelect {
+        max-width: 120px;
+    }
+    .dashboard-body {
+        min-width: 0;
+    }
+}
+
+@media (max-width: 480px) {
+    .metrics-grid {
+        grid-template-columns: 1fr;
+    }
+    .date-badge {
+        display: none;
+    }
+    #superAdminBranchSelect {
+        max-width: 105px;
+        padding-left: 6px !important;
+        padding-right: 6px !important;
+    }
+}
+/* Notification Icon Container */
+.notification-icon {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.notification-icon-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    color: #4b5563;
+    padding: 8px;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+    text-decoration: none;
+}
+
+.notification-icon-btn:hover {
+    background-color: #f3f4f6;
+    color: #1d4ed8;
+}
+
+/* Red Badge for Notification Count */
+.notification-icon-btn .badge-count {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    background-color: #ef4444;
+    color: #ffffff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 4px;
+    box-shadow: 0 2px 4px rgba(239, 68, 68, 0.4);
+    border: 2px solid #ffffff;
+    line-height: 1;
 }

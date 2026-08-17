@@ -10,63 +10,52 @@
 {% endblock %}
 
 {% block content %}
-<div class="reports-container fade-in">
+<div class="reports-container fade-in" id="reportPrintableArea">
     
     <!-- SECTION 1: Report Summary Cards (All 6 in 1 Line) -->
     <section class="reports-section summary-cards-section">
         <div class="summary-grid">
-            <!-- Card 1 -->
             <div class="summary-card">
                 <div class="card-icon blue-bg"><i class="fas fa-calendar-day"></i></div>
                 <div class="card-content">
                     <span class="card-title">Today's Sales</span>
-                    <h3 class="card-amount">₹{{ todays_sales|default:"0.00" }}</h3>
-                    <p class="card-comparison positive"><i class="fas fa-arrow-up"></i> {{ todays_sales_growth|default:"+0.0%" }}</p>
+                    <h3 class="card-amount">₹{{ todays_sales }}</h3>
                 </div>
             </div>
-            <!-- Card 2 -->
             <div class="summary-card">
                 <div class="card-icon blue-bg"><i class="fas fa-chart-line"></i></div>
                 <div class="card-content">
                     <span class="card-title">Monthly Sales</span>
-                    <h3 class="card-amount">₹{{ monthly_sales|default:"0.00" }}</h3>
-                    <p class="card-comparison positive"><i class="fas fa-arrow-up"></i> {{ monthly_sales_growth|default:"+0.0%" }}</p>
+                    <h3 class="card-amount">₹{{ monthly_sales }}</h3>
                 </div>
             </div>
-            <!-- Card 3 -->
             <div class="summary-card">
                 <div class="card-icon blue-bg"><i class="fas fa-shopping-cart"></i></div>
                 <div class="card-content">
                     <span class="card-title">Monthly Purchase</span>
-                    <h3 class="card-amount">₹{{ monthly_purchase|default:"0.00" }}</h3>
-                    <p class="card-comparison neutral"><i class="fas fa-minus"></i> {{ monthly_purchase_growth|default:"0.0%" }}</p>
+                    <h3 class="card-amount">₹{{ monthly_purchase }}</h3>
                 </div>
             </div>
-            <!-- Card 4 -->
             <div class="summary-card">
                 <div class="card-icon blue-bg"><i class="fas fa-file-invoice-dollar"></i></div>
                 <div class="card-content">
                     <span class="card-title">Monthly Expense</span>
-                    <h3 class="card-amount">₹{{ monthly_expense|default:"0.00" }}</h3>
-                    <p class="card-comparison negative"><i class="fas fa-arrow-up"></i> {{ monthly_expense_growth|default:"+0.0%" }}</p>
+                    <h3 class="card-amount">₹{{ monthly_expense }}</h3>
                 </div>
             </div>
-            <!-- Card 5 -->
             <div class="summary-card">
                 <div class="card-icon blue-bg"><i class="fas fa-piggy-bank"></i></div>
                 <div class="card-content">
                     <span class="card-title">Monthly Profit</span>
-                    <h3 class="card-amount">₹{{ monthly_profit|default:"0.00" }}</h3>
-                    <p class="card-comparison positive"><i class="fas fa-arrow-up"></i> {{ monthly_profit_growth|default:"+0.0%" }}</p>
+                    <h3 class="card-amount">₹{{ monthly_profit }}</h3>
                 </div>
             </div>
-            <!-- Card 6 -->
             <div class="summary-card">
                 <div class="card-icon blue-bg"><i class="fas fa-boxes"></i></div>
                 <div class="card-content">
                     <span class="card-title">Stock Value</span>
-                    <h3 class="card-amount">₹{{ stock_value|default:"0.00" }}</h3>
-                    <p class="card-comparison positive"><i class="fas fa-warehouse"></i> {{ total_stock_units|default:"0" }} Units</p>
+                    <h3 class="card-amount">₹{{ stock_value }}</h3>
+                    <p class="card-comparison positive"><i class="fas fa-warehouse"></i> {{ total_stock_units }} Units</p>
                 </div>
             </div>
         </div>
@@ -79,23 +68,14 @@
                 <h3><i class="fas fa-filter"></i> Advanced Report Filters</h3>
             </div>
             <form id="reportFilterForm" class="filter-form-wrapper" method="GET" action="{% url 'yakuza:reports' %}">
-                <div class="filter-grid">
+                <div class="filter-grid" style="grid-template-columns: repeat(5, 1fr);">
                     <div class="form-group">
                         <label for="dateFrom">Date From</label>
-                        <input type="date" id="dateFrom" name="date_from" value="{{ request.GET.date_from }}" class="form-control">
+                        <input type="date" id="dateFrom" name="date_from" value="{{ date_from }}" class="form-control">
                     </div>
                     <div class="form-group">
                         <label for="dateTo">Date To</label>
-                        <input type="date" id="dateTo" name="date_to" value="{{ request.GET.date_to }}" class="form-control">
-                    </div>
-                    <div class="form-group">
-                        <label for="branch">Branch</label>
-                        <select id="branch" name="branch" class="form-control">
-                            <option value="">All Branches</option>
-                            {% for b in branches %}
-                                <option value="{{ b.id }}" {% if request.GET.branch == b.id|stringformat:"s" %}selected{% endif %}>{{ b.name }}</option>
-                            {% endfor %}
-                        </select>
+                        <input type="date" id="dateTo" name="date_to" value="{{ date_to }}" class="form-control">
                     </div>
                     <div class="form-group">
                         <label for="vehicleCompany">Vehicle Company</label>
@@ -111,7 +91,7 @@
                         <select id="vehicleModel" name="model" class="form-control">
                             <option value="">All Models</option>
                             {% for m in models %}
-                                <option value="{{ m.id }}" {% if request.GET.model == m.id|stringformat:"s" %}selected{% endif %}>{{ m.name }}</option>
+                                <option value="{{ m.id }}" {% if request.GET.model == m.id|stringformat:"s" %}selected{% endif %}>{{ m.model_name }}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -119,26 +99,16 @@
                         <label for="paymentMethod">Payment Method</label>
                         <select id="paymentMethod" name="payment_method" class="form-control">
                             <option value="">All Methods</option>
-                            <option value="cash" {% if request.GET.payment_method == 'cash' %}selected{% endif %}>Cash</option>
-                            <option value="upi" {% if request.GET.payment_method == 'upi' %}selected{% endif %}>UPI / QR</option>
-                            <option value="card" {% if request.GET.payment_method == 'card' %}selected{% endif %}>Card</option>
-                            <option value="finance" {% if request.GET.payment_method == 'finance' %}selected{% endif %}>Finance</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="reportType">Report Type</label>
-                        <select id="reportType" name="report_type" class="form-control">
-                            <option value="sales" {% if request.GET.report_type == 'sales' %}selected{% endif %}>Sales & Performance</option>
-                            <option value="inventory" {% if request.GET.report_type == 'inventory' %}selected{% endif %}>Inventory & Stock</option>
-                            <option value="expense" {% if request.GET.report_type == 'expense' %}selected{% endif %}>Expense Audit</option>
-                            <option value="tax" {% if request.GET.report_type == 'tax' %}selected{% endif %}>Tax & GST Report</option>
+                            <option value="CASH" {% if request.GET.payment_method == 'CASH' %}selected{% endif %}>Cash</option>
+                            <option value="UPI" {% if request.GET.payment_method == 'UPI' %}selected{% endif %}>UPI / QR</option>
+                            <option value="EMI" {% if request.GET.payment_method == 'EMI' %}selected{% endif %}>EMI / Finance</option>
                         </select>
                     </div>
                 </div>
-                <!-- 4 buttons -->
+
                 <div class="form-actions-centered">
                     <button type="submit" class="btn btn-primary" id="generateReportBtn"><i class="fas fa-search"></i> Generate</button>
-                    <a href="{% url 'yakuza:reports' %}" class="btn btn-secondary"><i class="fas fa-redo"></i> Reset</a>
+                    <a href="{% url 'yakuza:reports' %}" class="btn btn-secondary" id="resetReportBtn"><i class="fas fa-redo"></i> Reset</a>
                     <button type="button" class="btn btn-outline" id="exportPdfBtn"><i class="fas fa-file-pdf"></i> PDF</button>
                     <button type="button" class="btn btn-outline" id="printReportBtn"><i class="fas fa-print"></i> Print</button>
                 </div>
@@ -181,7 +151,7 @@
         <div class="table-card">
             <div class="table-header-flex">
                 <h3><i class="fas fa-trophy"></i> Top Selling E-Bike Models</h3>
-                <span class="badge-sub">This Month</span>
+                <span class="badge-sub">Filtered Period</span>
             </div>
             <div class="table-responsive">
                 <table class="data-table">
@@ -209,74 +179,7 @@
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="5" class="text-center">No top models found for this period.</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </section>
-
-    <!-- SECTION 5: Branch Performance -->
-    <section class="reports-section branch-section">
-        <div class="section-title-wrapper">
-            <h3><i class="fas fa-code-branch"></i> Branch Performance Overview</h3>
-        </div>
-        <div class="branch-grid">
-            {% for branch in branch_performances %}
-            <div class="branch-card">
-                <h4>{{ branch.name }}</h4>
-                <div class="branch-stats">
-                    <div class="b-stat-row"><span>Sales:</span> <strong>₹{{ branch.sales }}</strong></div>
-                    <div class="b-stat-row"><span>Purchase:</span> <strong>₹{{ branch.purchase }}</strong></div>
-                    <div class="b-stat-row"><span>Expense:</span> <strong>₹{{ branch.expense }}</strong></div>
-                    <div class="b-stat-row highlight {% if branch.is_loss %}loss{% endif %}"><span>Profit:</span> <strong>{% if branch.is_loss %}-{% endif %}₹{{ branch.profit }}</strong></div>
-                    <div class="b-stat-row"><span>Stock Value:</span> <strong>₹{{ branch.stock_value }}</strong></div>
-                </div>
-            </div>
-            {% empty %}
-            <p class="text-center">No branch data available.</p>
-            {% endfor %}
-        </div>
-    </section>
-
-    <!-- SECTION 6: Recent Reports -->
-    <section class="reports-section table-section">
-        <div class="table-card">
-            <div class="table-header-flex">
-                <h3><i class="fas fa-history"></i> Recent Generated Reports</h3>
-                <span class="badge-sub">Archives</span>
-            </div>
-            <div class="table-responsive">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Generated Date</th>
-                            <th>Report Name</th>
-                            <th>Generated By</th>
-                            <th>Status</th>
-                            <th>Download</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for report in recent_reports %}
-                        <tr>
-                            <td>{{ report.generated_date|date:"d M Y, h:i A" }}</td>
-                            <td>{{ report.name }}</td>
-                            <td>{{ report.generated_by }}</td>
-                            <td><span class="status-pill success">{{ report.status }}</span></td>
-                            <td>
-                                {% if report.download_url %}
-                                <a href="{{ report.download_url }}" class="btn-icon-dl download-report-btn" title="Download"><i class="fas fa-download"></i></a>
-                                {% else %}
-                                <button class="btn-icon-dl download-report-btn" title="Download"><i class="fas fa-download"></i></button>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="5" class="text-center">No recent reports found.</td>
+                            <td colspan="5" class="text-center" style="text-align: center;">No model data available for selected filter.</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -290,5 +193,9 @@
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    window.chartData = JSON.parse('{{ chart_data_json|escapejs }}');
+    window.pdfUrl = "{% url 'yakuza:generate_reports_pdf' %}";
+</script>
 <script src="{% static 'js/reports.js' %}"></script>
 {% endblock %}

@@ -24,89 +24,79 @@
       <p class="welcome-subtitle">Register your showroom branch</p>
 
       <form id="registerForm" class="register-form" autocomplete="off" novalidate>
-
+        {% csrf_token %}
         <div class="form-grid">
+
+          <!-- પેલા વાળા input ને બદલે આ select ટેગ મૂકો -->
+<!-- Branch Selection with + Add Button -->
+<div class="input-group" style="display: flex; gap: 8px; align-items: center;">
+  <span class="input-icon">
+    <img src="{% static 'icon/branch.svg' %}" class="input-svg" alt="">
+  </span>
+
+  <!-- ૧. જૂની બ્રાન્ચ સિલેક્ટ કરવા માટે ડ્રોપડાઉન -->
+  <select id="branchSelect" class="text-input" style="flex: 1; border: none; outline: none; background: transparent;">
+    <option value="" disabled selected>Select Branch</option>
+    {% for branch in branches %}
+      <option value="{{ branch.id }}">{{ branch.branch_name }}</option>
+    {% endfor %}
+  </select>
+
+  <!-- ૨. નવી બ્રાન્ચ માટે ટેક્સ્ટ ઈનપુટ (ઓટો હિડન રહેશે) -->
+  <input type="text" id="branchNameInput" class="text-input" placeholder="Enter New Branch Name" style="display: none; flex: 1;">
+
+  <!-- ૩. + Add / Cancel બટન -->
+  <button type="button" id="toggleAddBranchBtn" style="padding: 6px 14px; background: #2563eb; color: #ffffff; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px;" title="Add New Branch">+</button>
+</div>
 
           <div class="input-group">
             <span class="input-icon">
-    <img src="{% static 'icon/branch.svg' %}" class="input-svg" alt="">
-</span>
-            <input type="text" id="branchName" name="branchName" class="text-input" placeholder="Branch Name" required>
-          </div>
-
-          <div class="input-group">
-           <span class="input-icon">
-    <img src="{% static 'icon/owner.svg' %}" class="input-svg" alt="">
-</span>
+              <img src="{% static 'icon/owner.svg' %}" class="input-svg" alt="">
+            </span>
             <input type="text" id="ownerName" name="ownerName" class="text-input" placeholder="Owner Name" required>
           </div>
 
           <div class="input-group">
             <span class="input-icon">
-    <img src="{% static 'icon/phone.svg' %}" class="input-svg" alt="">
-</span>
+              <img src="{% static 'icon/phone.svg' %}" class="input-svg" alt="">
+            </span>
             <input type="tel" id="mobileNumber" maxlength="10" name="mobileNumber" class="text-input" placeholder="Mobile Number" required>
           </div>
 
           <div class="input-group">
-           <span class="input-icon">
-    <img src="{% static 'icon/mail.svg' %}" class="input-svg" alt="">
-</span>
-            <input type="email" id="emailAddress" name="emailAddress" class="text-input" placeholder="Email Address" required>
-          </div>
-
-          <div class="input-group">
             <span class="input-icon">
-    <img src="{% static 'icon/user.svg' %}" class="input-svg" alt="">
-</span>
+              <img src="{% static 'icon/user.svg' %}" class="input-svg" alt="">
+            </span>
             <input type="text" id="username" name="username" class="text-input" placeholder="Username" required>
           </div>
 
+          <!-- Password -->
           <div class="input-group">
-    <span class="input-icon">
-        <img src="{% static 'icon/lock.svg' %}" class="input-svg" alt="">
-    </span>
+            <span class="input-icon">
+              <img src="{% static 'icon/lock.svg' %}" class="input-svg" alt="">
+            </span>
+            <input type="password" id="password" name="password" class="text-input" placeholder="Password" required>
+            <button type="button" class="toggle-password" id="togglePassword">
+              <img id="eyeIconPassword" src="{% static 'icon/eye.svg' %}" class="input-svg" alt="Show Password">
+            </button>
+          </div>
 
-    <input type="password"
-           id="password"
-           name="password"
-           class="text-input"
-           placeholder="Password"
-           required>
+          <!-- Confirm Password (હવે Password ની બાજુમાં જ એક Row માં આવશે) -->
+          <div class="input-group">
+            <span class="input-icon">
+              <img src="{% static 'icon/lock.svg' %}" class="input-svg" alt="">
+            </span>
+            <input type="password" id="confirmPassword" name="confirmPassword" class="text-input" placeholder="Confirm Password" required>
+            <button type="button" class="toggle-password" id="toggleConfirmPassword">
+              <img id="eyeIconConfirm" src="{% static 'icon/eye.svg' %}" class="input-svg" alt="Show Password">
+            </button>
+          </div>
 
-    <button type="button" class="toggle-password" id="togglePassword">
-        <img id="eyeIconPassword"
-             src="{% static 'icon/eye.svg' %}"
-             class="input-svg"
-             alt="Show Password">
-    </button>
-</div>
-
-      <div class="input-group full-width">
-
-    <span class="input-icon">
-        <img src="{% static 'icon/lock.svg' %}" class="input-svg" alt="">
-    </span>
-
-    <input type="password"
-           id="confirmPassword"
-           name="confirmPassword"
-           class="text-input"
-           placeholder="Confirm Password"
-           required>
-
-    <button type="button" class="toggle-password" id="toggleConfirmPassword">
-        <img id="eyeIconConfirm"
-             src="{% static 'icon/eye.svg' %}"
-             class="input-svg"
-             alt="Show Password">
-    </button>
-
-</div>
+          <!-- Branch Address -->
           <div class="input-group textarea-group full-width">
             <span class="input-icon input-icon-top">
-    <img src="{% static 'icon/location.svg' %}" class="input-svg" alt="">
-</span>
+              <img src="{% static 'icon/location.svg' %}" class="input-svg" alt="">
+            </span>
             <textarea id="branchAddress" name="branchAddress" class="text-input textarea-input" placeholder="Branch Address" rows="3" required></textarea>
           </div>
 
@@ -116,8 +106,6 @@
 
         <p class="login-hint">
           Already have an account?
-          <!-- Django integration point: replace href with {% url 'yakuza:login' %}
-               once you confirm the actual url name in urls.py -->
           <a href="{% url 'yakuza:login' %}" class="login-link">Login</a>
         </p>
 
@@ -125,7 +113,6 @@
     </div>
   </div>
 </div>
-
 
 <script src="{% static 'js/register.js' %}"></script>
 <div id="inlineToast" class="inline-toast"></div>

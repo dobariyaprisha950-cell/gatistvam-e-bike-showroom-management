@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from yakuza.models import (
-    Branch, UserProfile, Supplier, VehicleCompany, BatteryCapacity,
+    Branch, UserProfile, Supplier, VehicleCompany,
     VehicleColor, VehicleModel, Purchase, PurchaseItem, Stock,
     Sales, Customer, ExpenseMaster, Expense, Notification, Settings, AuditLog
 )
@@ -39,12 +39,6 @@ class VehicleCompanySerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class BatteryCapacitySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = BatteryCapacity
-        fields = '__all__'
-
-
 class VehicleColorSerializer(serializers.ModelSerializer):
     class Meta:
         model = VehicleColor
@@ -53,7 +47,6 @@ class VehicleColorSerializer(serializers.ModelSerializer):
 
 class VehicleModelSerializer(serializers.ModelSerializer):
     company_name = serializers.ReadOnlyField(source='company.company_name')
-    battery_capacity_name = serializers.ReadOnlyField(source='battery_capacity.capacity_name')
 
     class Meta:
         model = VehicleModel
@@ -93,7 +86,7 @@ class StockSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = (
             'purchase_item', 'branch', 'company', 'model',
-            'color', 'battery_capacity', 'purchase_price'
+            'color', 'purchase_price'
         )
 
 
@@ -111,6 +104,14 @@ class SalesSerializer(serializers.ModelSerializer):
     def validate_stock(self, value):
         if value.stock_status != Stock.StockStatus.AVAILABLE:
             raise serializers.ValidationError("Selected stock is not available for sale.")
+        request = self.context.get('request')
+        if request:
+            from yakuza.views import get_user_branch_context
+            branch = get_user_branch_context(request)
+            if not branch:
+                raise serializers.ValidationError("Select a specific branch before creating a sale.")
+            if value.branch_id != branch.id:
+                raise serializers.ValidationError("Selected stock is not available in the current branch.")
         return value
 
     def create(self, validated_data):
@@ -150,6 +151,7 @@ class ExpenseSerializer(serializers.ModelSerializer):
 
 
 class NotificationSerializer(serializers.ModelSerializer):
+    branch_name = serializers.CharField(source='branch.branch_name', read_only=True, default='All Branches')
     class Meta:
         model = Notification
         fields = '__all__'
@@ -166,7 +168,7 @@ class AuditLogSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AuditLog
-        fields = '__all__'
+        fields = ['id', 'user', 'user_name', 'old_value', 'new_value', 'timestamp']
 
 
 class ProfitReportSerializer(serializers.Serializer):

@@ -39,8 +39,8 @@
 
         <!-- Navigation Menu -->
         <ul class="sidebar-menu">
-            <li><a href="{% url 'yakuza:dashboard' %}" class="menu-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"><i class="fas fa-home"></i> Dashboard</a></li>
-            <li><a href="{% url 'yakuza:live_stock' %}" class="menu-item {% if request.resolver_match.url_name == 'live_stock' %}active{% endif %}"><i class="fas fa-boxes"></i> Live Stock</a></li>
+            <li><a href="{% url 'yakuza:dashboard' %}" class="menu-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"><i class="fas fa-home"></i><span>Dashboard</span></a></li>
+            <li><a href="{% url 'yakuza:live_stock' %}" class="menu-item {% if request.resolver_match.url_name == 'live_stock' %}active{% endif %}"><i class="fas fa-boxes"></i><span>Live Stock</span></a></li>
             <li class="has-submenu {% if request.resolver_match.url_name == 'purchase' or request.resolver_match.url_name == 'purchase_history' %}open{% endif %}">
             <a href="#" class="menu-item "><i class="fas fa-shopping-bag"></i> <span>Purchase</span>
             <i class="fas fa-chevron-right submenu-arrow"></i>
@@ -61,11 +61,11 @@
         </li>
     </ul>
             </li>
-            <li><a href="{% url 'yakuza:sales' %}" class="menu-item {% if request.resolver_match.url_name == 'sales' %}active{% endif %}"><i class="fas fa-shopping-cart"></i> Sales</a></li>
-            <li><a href="{% url 'yakuza:customer' %}" class="menu-item {% if request.resolver_match.url_name == 'customer' %}active{% endif %}"><i class="fas fa-users"></i> Customers</a></li>
-            <li><a href="{% url 'yakuza:expenses' %}" class="menu-item {% if request.resolver_match.url_name == 'expenses' %}active{% endif %}"><i class="fas fa-wallet"></i> Expenses</a></li>
-            <li><a href="{% url 'yakuza:reports' %}" class="menu-item {% if request.resolver_match.url_name == 'reports' %}active{% endif %}"><i class="fas fa-chart-line"></i> Reports</a></li>
-            <li><a href="{% url 'yakuza:settings' %}" class="menu-item {% if request.resolver_match.url_name == 'settings' %}active{% endif %}"><i class="fas fa-cog"></i> Settings</a></li>
+            <li><a href="{% url 'yakuza:sales' %}" class="menu-item {% if request.resolver_match.url_name == 'sales' %}active{% endif %}"><i class="fas fa-shopping-cart"></i><span>Sales</span></a></li>
+            <li><a href="{% url 'yakuza:customer' %}" class="menu-item {% if request.resolver_match.url_name == 'customer' %}active{% endif %}"><i class="fas fa-users"></i><span>Customers</span></a></li>
+            <li><a href="{% url 'yakuza:expenses' %}" class="menu-item {% if request.resolver_match.url_name == 'expenses' %}active{% endif %}"><i class="fas fa-wallet"></i><span>Expenses</span></a></li>
+            <li><a href="{% url 'yakuza:reports' %}" class="menu-item {% if request.resolver_match.url_name == 'reports' %}active{% endif %}"><i class="fas fa-chart-line"></i><span>Reports</span></a></li>
+            <li><a href="{% url 'yakuza:settings' %}" class="menu-item {% if request.resolver_match.url_name == 'settings' %}active{% endif %}"><i class="fas fa-cog"></i><span>Settings</span></a></li>
            
         </ul>
 
@@ -78,19 +78,39 @@
 
 <header class="topbar">
 
+
 <div class="topbar-left">
-
-<h2>
-
-{% block page_title %}
-Dashboard
-{% endblock %}
-
-</h2>
-
+    <button type="button" class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Open navigation"><i class="fas fa-bars"></i></button>
+    <h2>
+        {% block page_title %}
+        Dashboard
+        {% endblock %}
+    </h2>
 </div>
 
 <div class="topbar-right">
+
+    {% if request.user.is_authenticated and request.user.is_superuser or request.user.userprofile.role == 'SUPER_ADMIN' %}
+    <form action="{% url 'yakuza:switch_branch' %}" method="POST" id="branchSwitchForm" style="margin: 0;">
+        {% csrf_token %}
+        <select
+            name="branch_id"
+            id="superAdminBranchSelect"
+            onchange="document.getElementById('branchSwitchForm').submit();"
+            style="padding: 6px 12px; border-radius: 6px; border: 1px solid #cbd5e1; background-color: #f8fafc; font-weight: 500; cursor: pointer;"
+        >
+            <option value="all" {% if request.session.selected_branch_id == 'all' or not request.session.selected_branch_id %}selected{% endif %}>
+                All Branches
+            </option>
+
+            {% for b in all_active_branches %}
+                <option value="{{ b.id }}" {% if request.session.selected_branch_id == b.id|stringformat:"s" %}selected{% endif %}>
+                    {{ b.branch_name }}
+                </option>
+            {% endfor %}
+        </select>
+    </form>
+    {% endif %}
 
 <div class="date-badge" id="calendarBadge" onclick="openCalendar()">
                     <i class="far fa-calendar-alt"></i> 
@@ -109,8 +129,11 @@ Dashboard
      
     <div class="profile-dropdown">
     <button class="profile-btn" id="profileBtn" title="{{ request.user.get_full_name|default:request.user.username }}">
-        {% if request.user.is_authenticated and request.user.profile_picture %}
-            <img src="{{ request.user.profile_picture.url }}" alt="Profile" class="google-avatar-img">
+        {% if request.user.is_authenticated and request.user.userprofile.profile_photo %}
+            <img src="{{ request.user.userprofile.profile_photo.url }}" alt="Profile" class="google-avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+            <div class="google-avatar-text" style="display: none;">
+                {{ request.user.first_name|default:request.user.username|slice:":1"|upper }}
+            </div>
         {% else %}
             <div class="google-avatar-text">
                 {{ request.user.first_name|default:request.user.username|slice:":1"|upper }}
@@ -129,24 +152,13 @@ Dashboard
             <i class="fas fa-user"></i>
             Profile
         </a>
-        <a href="{% url 'yakuza:settings' %}">
-            <i class="fas fa-cog"></i>
-            Settings
-        </a>
+        
         <a href="{% url 'yakuza:settings' %}#security">
             <i class="fas fa-key"></i>
             Change Password
         </a>
+               
         
-        <hr>
-        <a href="#">
-            <i class="fas fa-question-circle"></i>
-            Help
-        </a>
-        <a href="#">
-            <i class="fas fa-info-circle"></i>
-            About Software
-        </a>
         <hr>
         <a href="{% url 'yakuza:logout' %}" class="logout">
             <i class="fas fa-sign-out-alt"></i>
@@ -220,6 +232,18 @@ document.addEventListener("click",function(){
 
     
 document.addEventListener("DOMContentLoaded", function () {
+        const mobileNavToggle = document.getElementById('mobileNavToggle');
+        const sidebar = document.querySelector('.sidebar');
+        if (mobileNavToggle && sidebar) {
+            mobileNavToggle.addEventListener('click', function () {
+                sidebar.classList.toggle('mobile-open');
+            });
+            document.addEventListener('click', function (event) {
+                if (window.innerWidth <= 768 && !sidebar.contains(event.target) && !mobileNavToggle.contains(event.target)) {
+                    sidebar.classList.remove('mobile-open');
+                }
+            });
+        }
         const hasSubmenus = document.querySelectorAll(".has-submenu");
 
         hasSubmenus.forEach(function (submenuItem) {

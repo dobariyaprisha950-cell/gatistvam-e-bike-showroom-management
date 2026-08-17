@@ -15,48 +15,36 @@
         <div class="card-header-custom">
             <h3>Customer Filters</h3>
         </div>
-        <div class="filter-grid">
-            <div class="filter-item">
+        <div class="filter-grid" style="grid-template-columns: 2fr 1.5fr 1.5fr 1.5fr auto; gap: 10px; align-items: flex-end;">
+            <div class="filter-item" style="margin-bottom: 0;">
                 <label>Search</label>
-                <input type="text" id="searchInput" class="form-control" placeholder="Search customer...">
+                <input type="text" id="searchInput" class="form-control" placeholder="Search customer name, phone, invoice...">
             </div>
-            <div class="filter-item">
-                <label>Date From</label>
-                <input type="date" id="dateFrom" class="form-control">
+            <div class="filter-item" style="margin-bottom: 0;">
+                <label>Date</label>
+                <input type="date" id="dateInput" class="form-control">
             </div>
-            <div class="filter-item">
-                <label>Date To</label>
-                <input type="date" id="dateTo" class="form-control">
-            </div>
-            <div class="filter-item">
+            <div class="filter-item" style="margin-bottom: 0;">
                 <label>Model</label>
                 <select id="modelSelect" class="form-control">
                     <option value="">All Models</option>
-                    <option value="Model X">Model X</option>
-                    <option value="Model Y">Model Y</option>
+                    {% for model in vehicle_models %}
+                    <option value="{{ model.model_name }}">{{ model.model_name }}</option>
+                    {% endfor %}
                 </select>
             </div>
-            <div class="filter-item">
-                <label>Branch</label>
-                <select id="branchSelect" class="form-control">
-                    <option value="">All Branches</option>
-                    <option value="Main Branch">Main Branch</option>
-                    <option value="Downtown Branch">Downtown Branch</option>
-                </select>
-            </div>
-            <div class="filter-item">
+            <div class="filter-item" style="margin-bottom: 0;">
                 <label>Payment Method</label>
                 <select id="paymentMethodSelect" class="form-control">
                     <option value="">All Methods</option>
                     <option value="Cash">Cash</option>
                     <option value="UPI">UPI</option>
                     <option value="EMI">EMI</option>
-                    <option value="Credit Card">Credit Card</option>
                 </select>
             </div>
-        </div>
-        <div class="filter-actions">
-            <button type="button" id="resetBtn" class="btn btn-secondary">Reset</button>
+            <div class="filter-item" style="margin-bottom: 0;">
+                <button type="button" id="resetBtn" class="btn btn-secondary" style="height: 38px; white-space: nowrap;">Reset</button>
+            </div>
         </div>
     </div>
 
@@ -69,11 +57,10 @@
             <table class="customer-table" id="customerTable">
                 <thead>
                     <tr>
+                        <th>Invoice No</th>
                         <th>Customer Name</th>
                         <th>Phone</th>
-                        <th>Email</th>
                         <th>Model</th>
-                        <th>Branch</th>
                         <th>Payment</th>
                         <th>Date</th>
                         <th>Actions</th>
@@ -81,29 +68,45 @@
                 </thead>
                 <tbody>
                     {% for customer in customers %}
-                    <tr data-customer-name="{{ customer.name }}" 
-                        data-phone="{{ customer.phone }}" 
-                        data-email="{{ customer.email|default:'' }}" 
-                        data-model="{{ customer.model_name }}" 
-                        data-branch="{{ customer.branch_name }}" 
-                        data-payment="{{ customer.payment_mode }}" 
-                        data-price="{{ customer.price }}"
-                        data-date="{{ customer.created_at|date:'Y-m-d' }}">
+                    <tr data-sale-id="{{ customer.id }}"
+                        data-invoice-no="{{ customer.invoice_no }}"
+                        data-customer-name="{{ customer.customer_name }}" 
+                        data-phone="{{ customer.mobile_number }}" 
+                        data-aadhar="{{ customer.aadhar_number|default:'' }}"
+                        data-model="{{ customer.stock.model.model_name|default:'' }}" 
+                        data-color="{{ customer.stock.color.color_name|default:'N/A' }}"
+                        data-payment="{{ customer.get_payment_method_display }}" 
+                        data-price="{{ customer.selling_price }}"
+                        data-subtotal="{{ customer.subtotal }}"
+                        data-cgst="{{ customer.cgst }}"
+                        data-sgst="{{ customer.sgst }}"
+                        data-discount="{{ customer.discount }}"
+                        data-grand-total="{{ customer.grand_total }}"
+                        data-chassis="{{ customer.stock.chassis_number|default:'N/A' }}"
+                        data-battery="{{ customer.stock.battery_number|default:'N/A' }}"
+                        data-motor="{{ customer.stock.motor_number|default:'N/A' }}"
+                        data-controller="{{ customer.stock.controller_number|default:'N/A' }}"
+                        data-date="{{ customer.created_at|date:'Y-m-d' }}"
+                        data-branch="{{ customer.stock.branch.branch_name|default:'Main Branch' }}"
+                        data-branch-address="{{ customer.stock.branch.address|default:'' }}"
+                        data-branch-phone="{{ customer.stock.branch.phone|default:'' }}"
+                        data-branch-gst="{{ customer.stock.branch.gst_number|default:'' }}">
                         
-                        <td>{{ customer.name }}</td>
-                        <td>{{ customer.phone }}</td>
-                        <td>{{ customer.email|default:"-" }}</td>
-                        <td>{{ customer.model_name }}</td>
-                        <td>{{ customer.branch_name }}</td>
-                        <td>{{ customer.payment_mode }}</td>
+                        <td><strong>{{ customer.invoice_no }}</strong></td>
+                        <td>{{ customer.customer_name }}</td>
+                        <td>{{ customer.mobile_number }}</td>
+                        <td>{{ customer.stock.model.model_name|default:"-" }}</td>
+                        <td><span class="badge badge-info">{{ customer.get_payment_method_display }}</span></td>
                         <td>{{ customer.created_at|date:'Y-m-d' }}</td>
                         <td>
-                            <button class="btn btn-primary btn-sm view-invoice-btn" data-id="{{ customer.invoice_no }}">View</button>
+                            <div style="display: flex; gap: 5px; align-items: center;">
+                                <button type="button" class="btn btn-primary btn-sm view-invoice-btn" data-id="{{ customer.id }}">View</button>
+                            </div>
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="8" style="text-align: center;">No customers in current database.</td>
+                        <td colspan="7" style="text-align: center; color: #64748b; padding: 20px;">No sales or customer records found in database.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -114,101 +117,145 @@
 
 <!-- Sales Invoice Popup Modal -->
 <div id="invoiceModal" class="sales-modal-overlay" style="display: none;">
-    <div class="sales-modal-container">
+    <div class="sales-modal-container" style="max-width: 850px;">
+        <!-- Modal Header -->
         <div class="sales-modal-header">
-            <h3>Tax Invoice</h3>
+            <h3>Invoice Preview</h3>
             <button type="button" class="sales-modal-close" id="closeInvoiceModal">&times;</button>
         </div>
+
+        <!-- Modal Body (Printable Paper Area) -->
         <div class="sales-modal-body">
-            <div class="sales-invoice-paper" id="invoicePrintArea">
-                <div class="inv-header">
-                    <div class="inv-company-info">
-                        <h2>Gatistvam Electric Vehical</h2>
-                        <p>Gatistvam E-Bike, G/15, Ashta Capital, Chobari Road, Junagadh - 362001</p>
-                        <p>Mo. 8488885733</p>
-                        <p>GST NO. 24CURPK4247E1Z1</p>
+            <div class="sales-invoice-paper" id="printable-invoice-container" style="border: 1px solid #333333; padding: 20px; background: white;">
+                
+                <!-- Top Header with Logo -->
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid #333; padding-bottom: 12px; margin-bottom: 12px;">
+                    <div>
+                        <h2 style="margin: 0 0 4px 0; font-size: 18px; font-weight: bold; color: #1e293b;" id="invHeaderCompany">Gatistvam Electric Vehicle</h2>
+                        <p style="margin: 2px 0; font-size: 11px; color: #333;" id="invHeaderAddress">Gatistvam E-Bike, G/15, Ashta Capital, Chobari Road, Junagadh - 362001</p>
+                        <p style="margin: 2px 0; font-size: 11px; color: #333;">Mo. <span id="invHeaderPhone">8488885733</span></p>
+                        <p style="margin: 2px 0; font-size: 11px; color: #333;">GST NO. <span id="invHeaderGst">24CURPK4247E1Z1</span></p>
                     </div>
-                    <div class="inv-meta-info">
-                        <div class="inv-logo-badge">
-                            <img src="{% static 'images/logo.png' %}" alt="Logo" style="height: 40px;" onerror="this.style.display='none'">
-                        </div>
-                        <p><strong>Invoice No.:</strong> <span id="invNo">-</span></p>
-                        <p><strong>Date:</strong> <span id="invDate">-</span></p>
-                    </div>
-                </div>
-                <hr class="inv-divider">
-                <div class="inv-customer-section">
-                    <div class="inv-cust-row">
-                        <p><strong>Bill To:</strong> <span id="invCustName">-</span></p>
-                        <p><strong>Aadhar no:</strong> XXXX XXXX XXXX</p>
-                    </div>
-                    <div class="inv-cust-row">
-                        <p><strong>Billing Address:</strong> <span id="invBranch">-</span></p>
-                    </div>
-                    <div class="inv-cust-row">
-                        <p><strong>Contact No.:</strong> <span id="invCustPhone">-</span></p>
+                    <div style="text-align: right; display: flex; flex-direction: column; align-items: flex-end;">
+                        <img src="{% static 'images/logo.png' %}" alt="Logo" style="max-height: 50px; margin-bottom: 5px;">
+                        <p style="margin: 2px 0; font-size: 11px;"><strong>Invoice No.:</strong> <span id="invNo">-</span></p>
+                        <p style="margin: 2px 0; font-size: 11px;"><strong>Date:</strong> <span id="invDate">-</span></p>
                     </div>
                 </div>
-                <div class="inv-table-wrapper">
-                    <table class="inv-items-table">
-                        <thead>
-                            <tr>
-                                <th>Sr. No.</th>
-                                <th>Item Name</th>
-                                <th>HSN/SAC</th>
-                                <th>Quantity</th>
-                                <th>Unit</th>
-                                <th>Price/Unit</th>
-                                <th>GST</th>
-                                <th>Amount</th>
-                            </tr>
-                        </thead>
-                        <tbody id="invItemsBody">
-                            <tr>
-                                <td>1</td>
-                                <td id="invModelName">-</td>
-                                <td>87116020</td>
-                                <td>1</td>
-                                <td>NOS</td>
-                                <td id="invPriceUnit">0.00</td>
-                                <td id="invGstUnit">0.00</td>
-                                <td id="invTotalAmount">0.00</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div class="inv-payment-summary-flex" style="display: flex; justify-content: space-between; margin-top: 15px; align-items: flex-start;">
-                    <div class="inv-payment-box" style="border: 1px solid #4b5563; width: 45%;">
-                        <div style="background-color: #6b7280; color: white; padding: 4px 8px; font-weight: bold; font-size: 11px;">PAYMENT</div>
-                        <div style="padding: 8px; font-size: 11px;" id="invPaymentMode">-</div>
+
+                <!-- Customer Section -->
+                <div style="border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
+                    <div style="font-size: 12px; margin-bottom: 4px;"><strong>Customer Name:</strong> <span id="invCustName">-</span></div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; font-size: 11px;">
+                        <div><strong>Billing Address:</strong> <span id="invAddress">Main Branch</span></div>
+                        <div><strong>Aadhaar No:</strong> <span id="invAadhaar">-</span></div>
                     </div>
-                    <div class="inv-totals-section" style="width: 45%;">
-                        <div class="inv-total-row">
-                            <span>Sub Total:</span>
-                            <span id="invSubtotal" style="color: black; padding: 1px 6px;">0.00</span>
-                        </div>
-                        <div class="inv-total-row">
-                            <span>SGST (2.5%):</span>
-                            <span id="invSgst" style="color: black; padding: 1px 6px;">0.00</span>
-                        </div>
-                        <div class="inv-total-row">
-                            <span>CGST (2.5%):</span>
-                            <span id="invCgst" style="color: black; padding: 1px 6px;">0.00</span>
-                        </div>
-                        <div class="inv-total-row grand-total" style="margin-top: 5px;">
-                            <span>Final Amount:</span>
-                            <span id="invGrandTotal" style="color: black; padding: 2px 8px; font-size: 13px;">0.00</span>
-                        </div>
+                    <div style="font-size: 11px; margin-top: 4px;"><strong>Contact No.:</strong> <span id="invCustPhone">-</span></div>
+                </div>
+
+                <!-- Items Table -->
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 0;">
+                    <thead>
+                        <tr style="background-color: #e5e7eb;">
+                            <th style="border: 1px solid #333; padding: 6px; font-size: 11px; text-align: center; width: 6%;">Sr.</th>
+                            <th style="border: 1px solid #333; padding: 6px; font-size: 11px; text-align: left; width: 34%;">Item Name</th>
+                            <th style="border: 1px solid #333; padding: 6px; font-size: 11px; text-align: center; width: 12%;">HSN/SAC</th>
+                            <th style="border: 1px solid #333; padding: 6px; font-size: 11px; text-align: center; width: 7%;">Qty</th>
+                            <th style="border: 1px solid #333; padding: 6px; font-size: 11px; text-align: center; width: 8%;">Unit</th>
+                            <th style="border: 1px solid #333; padding: 6px; font-size: 11px; text-align: right; width: 13%;">Price/Unit</th>
+                            <th style="border: 1px solid #333; padding: 6px; font-size: 11px; text-align: center; width: 10%;">GST (5%)</th>
+                            <th style="border: 1px solid #333; padding: 6px; font-size: 11px; text-align: right; width: 10%;">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="border: 1px solid #333; padding: 6px; font-size: 11px; text-align: center;">1</td>
+                            <td style="border: 1px solid #333; padding: 6px; font-size: 11px;"><span id="invModelName">-</span> (<span id="invColor">-</span>)</td>
+                            <td style="border: 1px solid #333; padding: 6px; font-size: 11px; text-align: center;">87116020</td>
+                            <td style="border: 1px solid #333; padding: 6px; font-size: 11px; text-align: center;">1</td>
+                            <td style="border: 1px solid #333; padding: 6px; font-size: 11px; text-align: center;">NOS</td>
+                            <td style="border: 1px solid #333; padding: 6px; font-size: 11px; text-align: right;" id="invPriceUnit">0.00</td>
+                            <td style="border: 1px solid #333; padding: 6px; font-size: 11px; text-align: center;" id="invGstAmount">0.00</td>
+                            <td style="border: 1px solid #333; padding: 6px; font-size: 11px; text-align: right;" id="invTotalAmount">0.00</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- Vehicle Specs Box — Exactly ONE field per row -->
+                <div style="border: 1px solid #333; border-top: none; padding: 6px 10px; font-size: 11px; background-color: #fafafa;">
+                    <div style="display: flex; flex-direction: column; gap: 4px;">
+                        <div><strong>Chassis No:</strong> <span id="invChassis">-</span></div>
+                        <div><strong>Battery No:</strong> <span id="invBattery">-</span></div>
+                        <div><strong>Motor No:</strong> <span id="invMotor">-</span></div>
+                        <div><strong>Controller No:</strong> <span id="invController">-</span></div>
                     </div>
                 </div>
+
+                <!-- Table Summary Bar -->
+                <div style="display: flex; justify-content: space-between; border: 1px solid #333; border-top: none; padding: 6px 10px; font-weight: bold; background: #e5e7eb; font-size: 11px; margin-bottom: 12px;">
+                    <span>Total</span>
+                    <div style="display: flex; gap: 35px; padding-right: 15px;">
+                        <span>₹ <span id="invSumBase">0.00</span></span>
+                        <span>₹ <span id="invSumGst">0.00</span></span>
+                        <span>₹ <span id="invSumGrand">0.00</span></span>
+                    </div>
+                </div>
+
+                <!-- Footer Flex (Payment & Totals) -->
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
+                    <!-- Payment Box -->
+                    <div style="border: 1px solid #333; width: 45%;">
+                        <div style="background: #6b7280; color: white; font-weight: bold; padding: 4px 8px; font-size: 11px;">PAYMENT METHOD</div>
+                        <div style="padding: 8px; font-weight: bold; font-size: 12px;">
+                            <span id="invPaymentMode">-</span>: ₹ <span id="invPaymentAmount">0.00</span>
+                        </div>
+                    </div>
+
+                    <!-- Calculation Box -->
+                    <div style="width: 45%; text-align: right; font-size: 12px;">
+                        <p style="margin: 3px 0;">Sub Total: ₹ <span id="invSubtotal">0.00</span></p>
+                        <p style="margin: 3px 0;">SGST @ 2.5%: ₹ <span id="invSgst">0.00</span></p>
+                        <p style="margin: 3px 0;">CGST @ 2.5%: ₹ <span id="invCgst">0.00</span></p>
+                        <p style="margin: 3px 0;">Discount: ₹ <span id="invDiscount">0.00</span></p>
+                        <p style="font-weight: bold; font-size: 13px; border-top: 1px solid #333; padding-top: 4px; margin-top: 4px;">
+                            Final Amount: ₹ <span id="invGrandTotal">0.00</span>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Terms & Signature -->
+                <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 10px;">
+                    <div style="width: 55%; font-size: 10px; color: #222;">
+                        <strong>Terms & Conditions</strong>
+                        <ul>
+                                {% if invoice_setting.terms %}
+                                    <li style="white-space: pre-line; list-style-type: disc; margin-left: 15px;">{{ invoice_setting.terms }}</li>
+                                {% else %}
+                                    <li>Goods once sold will not be taken back or exchanged.</li>
+                                    <li>Warranty as per manufacturer policy only.</li>
+                                    <li>Battery warranty subject to usage and charging conditions.</li>
+                                    <li>Any physical damage is not covered under warranty.</li>
+                                {% endif %}
+                            </ul>
+                    </div>
+                    <div style="width: 38%; text-align: center; font-size: 11px;">
+                        <div style="height: 45px;"></div>
+                        <div style="border-top: 1px solid #333; padding-top: 3px;">Authorized Seal & Signature</div>
+                    </div>
+                </div>
+
             </div>
         </div>
-        <div class="sales-modal-footer">
-            <button type="button" class="sales-btn sales-btn-whatsapp" id="shareWhatsAppBtn">Share on WhatsApp</button>
-            <button type="button" class="sales-btn sales-btn-print" id="printInvoiceBtn">Print Invoice</button>
+
+        <!-- Modal Footer -->
+        <div class="sales-modal-footer" style="display: flex; justify-content: flex-end; gap: 10px; padding: 12px 20px; background-color: #f8fafc; border-top: 1px solid #e2e8f0;">
+            <button type="button" class="sales-btn" id="editInvoiceBtn" style="background: #f59e0b; color: white; border: none; padding: 8px 14px; border-radius: 4px; font-weight: bold; cursor: pointer;"><i class="fas fa-edit"></i> Edit</button>
+            <button type="button" class="sales-btn sales-btn-print" id="printInvoiceBtn" style="background: #0284c7; color: white; border: none; padding: 8px 14px; border-radius: 4px; font-weight: bold; cursor: pointer;"><i class="fas fa-print"></i> Print Invoice</button>
+            <button type="button" class="sales-btn" id="whatsappModalBtn" style="background: #25d366; color: white; border: none; padding: 8px 14px; border-radius: 4px; font-weight: bold; cursor: pointer;"><i class="fab fa-whatsapp"></i> Share on WhatsApp</button>
+            <button type="button" class="sales-btn sales-btn-close" id="closeInvoiceFooterBtn" style="background: #64748b; color: white; border: none; padding: 8px 14px; border-radius: 4px; font-weight: bold; cursor: pointer;">Close</button>
         </div>
     </div>
 </div>
-
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="{% static 'js/customer.js' %}"></script>
 {% endblock %}

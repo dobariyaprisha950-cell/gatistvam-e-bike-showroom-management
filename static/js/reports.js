@@ -1,51 +1,39 @@
 document.addEventListener('DOMContentLoaded', function() {
-    
-    // Set default dates for filters (Current month range)
-    const today = new Date();
-    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-    
-    const formatDate = (date) => {
-        let d = new Date(date),
-            month = '' + (d.getMonth() + 1),
-            day = '' + d.getDate(),
-            year = d.getFullYear();
-
-        if (month.length < 2) month = '0' + month;
-        if (day.length < 2) day = '0' + day;
-
-        return [year, month, day].join('-');
-    };
-
-    const dateFromEl = document.getElementById('dateFrom');
-    const dateToEl = document.getElementById('dateTo');
-
-    if (dateFromEl && !dateFromEl.value) {
-        dateFromEl.value = formatDate(firstDay);
-    }
-    if (dateToEl && !dateToEl.value) {
-        dateToEl.value = formatDate(today);
-    }
 
     // Chart.js Default Config adjustments
     Chart.defaults.font.family = "inherit";
     Chart.defaults.color = '#6b778c';
 
+    const chartData = window.chartData || {};
+
+    /**
+     * Helper function to dynamically scale X-Axis ticks based on date range length
+     * keeps all daily data points intact while optimizing visual label density.
+     */
+    function getResponsiveXAxisTicks(labelsArray) {
+        const count = labelsArray ? labelsArray.length : 0;
+        return {
+            autoSkip: true,
+            maxTicksLimit: count > 60 ? 8 : (count > 30 ? 10 : 12),
+            maxRotation: count > 30 ? 45 : 0,
+            minRotation: 0,
+            font: {
+                size: count > 60 ? 10 : 11
+            }
+        };
+    }
+
     // 1. Sales vs Purchase Line Chart
     const ctxSalesPurchase = document.getElementById('salesPurchaseChart');
-    if (ctxSalesPurchase) {
-        // જો તમારી પાસે window.chartData હોય તો તેનો ઉપયોગ કરો, નહિતર ડિફોલ્ટ ડમી ડેટા રહેશે
-        const spLabels = window.chartData && window.chartData.salesPurchaseLabels ? window.chartData.salesPurchaseLabels : ['W1', 'W2', 'W3', 'W4'];
-        const spSalesData = window.chartData && window.chartData.salesData ? window.chartData.salesData : [320000, 410000, 390000, 485000];
-        const spPurchaseData = window.chartData && window.chartData.purchaseData ? window.chartData.purchaseData : [250000, 300000, 220000, 210000];
-
+    if (ctxSalesPurchase && chartData.salesPurchaseLabels && chartData.salesPurchaseLabels.length > 0) {
         new Chart(ctxSalesPurchase, {
             type: 'line',
             data: {
-                labels: spLabels,
+                labels: chartData.salesPurchaseLabels,
                 datasets: [
                     {
                         label: 'Sales (₹)',
-                        data: spSalesData,
+                        data: chartData.salesData || [],
                         borderColor: '#0052cc',
                         backgroundColor: 'rgba(0, 82, 204, 0.05)',
                         borderWidth: 2,
@@ -54,7 +42,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     },
                     {
                         label: 'Purchase (₹)',
-                        data: spPurchaseData,
+                        data: chartData.purchaseData || [],
                         borderColor: '#ffab00',
                         backgroundColor: 'rgba(255, 171, 0, 0.05)',
                         borderWidth: 2,
@@ -67,74 +55,59 @@ document.addEventListener('DOMContentLoaded', function() {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: { boxWidth: 10, font: { size: 10 } }
-                    }
+                    legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } }
                 },
                 scales: {
-                    y: {
-                        beginAtZero: true,
-                        grid: { color: '#dfe1e6' }
-                    },
+                    y: { beginAtZero: true, grid: { color: '#dfe1e6' } },
                     x: {
-                        grid: { display: false }
+                        grid: { display: false },
+                        ticks: getResponsiveXAxisTicks(chartData.salesPurchaseLabels)
                     }
                 }
             }
         });
     }
 
-    // 2. Expense Distribution Donut Chart
+    // 2. Expense Distribution Donut Chart (Unchanged)
     const ctxExpense = document.getElementById('expenseChart');
     if (ctxExpense) {
-        const expLabels = window.chartData && window.chartData.expenseLabels ? window.chartData.expenseLabels : ['Salaries', 'Rent', 'Mktg', 'Maint', 'Logistics'];
-        const expValues = window.chartData && window.chartData.expenseValues ? window.chartData.expenseValues : [65000, 30000, 20000, 18000, 12000];
-
-        new Chart(ctxExpense, {
-            type: 'doughnut',
-            data: {
-                labels: expLabels,
-                datasets: [{
-                    data: expValues,
-                    backgroundColor: [
-                        '#0052cc',
-                        '#00b8d9',
-                        '#36b37e',
-                        '#ffab00',
-                        '#6554c0'
-                    ],
-                    borderWidth: 2,
-                    borderColor: '#ffffff'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: { boxWidth: 10, font: { size: 10 } }
-                    }
+        if (chartData.expenseValues && chartData.expenseValues.length > 0) {
+            new Chart(ctxExpense, {
+                type: 'doughnut',
+                data: {
+                    labels: chartData.expenseLabels || [],
+                    datasets: [{
+                        data: chartData.expenseValues || [],
+                        backgroundColor: ['#0052cc', '#00b8d9', '#36b37e', '#ffab00', '#6554c0', '#de350b'],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
                 },
-                cutout: '70%'
-            }
-        });
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } }
+                    },
+                    cutout: '70%'
+                }
+            });
+        } else {
+            const container = ctxExpense.parentElement;
+            container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#6b778c;font-size:12px;">No expense data available</div>';
+        }
     }
 
     // 3. Monthly Profit Bar Chart
     const ctxProfit = document.getElementById('monthlyProfitChart');
-    if (ctxProfit) {
-        const profitLabels = window.chartData && window.chartData.profitLabels ? window.chartData.profitLabels : ['Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'];
-        const profitValues = window.chartData && window.chartData.profitValues ? window.chartData.profitValues : [210000, 240000, 190000, 280000, 260000, 300000];
-
+    if (ctxProfit && chartData.profitLabels && chartData.profitLabels.length > 0) {
         new Chart(ctxProfit, {
             type: 'bar',
             data: {
-                labels: profitLabels,
+                labels: chartData.profitLabels,
                 datasets: [{
                     label: 'Net Profit (₹)',
-                    data: profitValues,
+                    data: chartData.profitValues || [],
                     backgroundColor: '#0052cc',
                     borderRadius: 4,
                 }]
@@ -142,40 +115,27 @@ document.addEventListener('DOMContentLoaded', function() {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false }
-                },
+                plugins: { legend: { display: false } },
                 scales: {
-                    y: {
-                        beginAtZero: true,
-                        grid: { color: '#dfe1e6' }
-                    },
+                    y: { beginAtZero: true, grid: { color: '#dfe1e6' } },
                     x: {
-                        grid: { display: false }
+                        grid: { display: false },
+                        ticks: getResponsiveXAxisTicks(chartData.profitLabels)
                     }
                 }
             }
         });
     }
 
-    // Filter Form Submission Handler (Generate Report without alerts)
+    // Filter Form Submit Spinner
     const filterForm = document.getElementById('reportFilterForm');
     if (filterForm) {
-        filterForm.addEventListener('submit', function(e) {
+        filterForm.addEventListener('submit', function() {
             const submitBtn = document.getElementById('generateReportBtn');
             if (submitBtn) {
-                const originalText = submitBtn.innerHTML;
-                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
                 submitBtn.disabled = true;
             }
-        });
-
-        // Reset Form Handler (Resets inputs and restores default date range natively)
-        filterForm.addEventListener('reset', function() {
-            setTimeout(() => {
-                if (dateFromEl) dateFromEl.value = formatDate(firstDay);
-                if (dateToEl) dateToEl.value = formatDate(today);
-            }, 10);
         });
     }
 
@@ -183,7 +143,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const exportPdfBtn = document.getElementById('exportPdfBtn');
     if (exportPdfBtn) {
         exportPdfBtn.addEventListener('click', function() {
-            console.log("Generating PDF file...");
+            const dateFrom = document.getElementById('dateFrom') ? document.getElementById('dateFrom').value : '';
+            const dateTo = document.getElementById('dateTo') ? document.getElementById('dateTo').value : '';
+            const pdfUrl = `${window.pdfUrl || '/yakuza/reports/pdf/'}?date_from=${dateFrom}&date_to=${dateTo}`;
+            window.location.href = pdfUrl;
         });
     }
 
@@ -194,13 +157,4 @@ document.addEventListener('DOMContentLoaded', function() {
             window.print();
         });
     }
-
-    // Recent Report Download Event Handlers
-    const downloadButtons = document.querySelectorAll('.download-report-btn');
-    downloadButtons.forEach((btn, index) => {
-        btn.addEventListener('click', function() {
-            console.log(`Downloading report item #${index + 1}...`);
-        });
-    });
-
 });

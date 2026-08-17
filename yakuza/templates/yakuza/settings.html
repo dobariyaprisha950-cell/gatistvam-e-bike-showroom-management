@@ -11,14 +11,13 @@ Settings
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/settings.css' %}">
+<!-- Eye Icon માટે FontAwesome CSS -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 {% endblock %}
 
 {% block content %}
 
 <div class="erp-settings-wrapper">
-    
-
-    <!-- Inner Settings Body (2-Column Layout: Inner Nav + Tab Content) -->
     <div class="erp-settings-body">
         
         <!-- Left Inner Settings Navigation Panel -->
@@ -44,7 +43,7 @@ Settings
                 </li>
                 <li role="presentation">
                     <button class="erp-nav-item" data-target="section-invoice" role="tab" aria-selected="false">
-                        <svg class="erp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                        <svg class="erp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 2 2h12a2 2 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
                         <span>Invoice Settings</span>
                     </button>
                 </li>
@@ -55,27 +54,15 @@ Settings
                     </button>
                 </li>
                 <li role="presentation">
-                    <button class="erp-nav-item" data-target="section-preferences" role="tab" aria-selected="false">
-                        <svg class="erp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                        <span>Preferences</span>
-                    </button>
-                </li>
-                <li role="presentation">
                     <button class="erp-nav-item" data-target="section-audit" role="tab" aria-selected="false">
-                        <svg class="erp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+                        <svg class="erp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 2 2h12a2 2 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
                         <span>Audit Log</span>
                     </button>
                 </li>
-                <li role="presentation" class="erp-superuser-only">
+                <li role="presentation">
                     <button class="erp-nav-item" data-target="section-backup" role="tab" aria-selected="false">
                         <svg class="erp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
                         <span>Backup &amp; Restore</span>
-                    </button>
-                </li>
-                <li role="presentation">
-                    <button class="erp-nav-item" data-target="section-about" role="tab" aria-selected="false">
-                        <svg class="erp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                        <span>About</span>
                     </button>
                 </li>
             </ul>
@@ -92,11 +79,16 @@ Settings
                         <p>Manage your account credentials and personal preferences.</p>
                     </div>
                     <div class="erp-card-body">
-                        <form id="form-profile" class="erp-form">
+                        <form id="form-profile" class="erp-form" enctype="multipart/form-data">
+                            {% csrf_token %}
                             <div class="erp-avatar-upload-container">
                                 <div class="erp-avatar-preview">
-                                    <span class="erp-avatar-placeholder">U</span>
-                                    <img id="profile-img-preview" src="" alt="Profile Preview" hidden>
+                                    {% if user_profile.profile_photo %}
+                                        <img id="profile-img-preview" src="{{ user_profile.profile_photo.url }}" alt="Profile Preview">
+                                    {% else %}
+                                        <span class="erp-avatar-placeholder">{{ request.user.username|slice:":1"|upper }}</span>
+                                        <img id="profile-img-preview" src="" alt="Profile Preview" hidden>
+                                    {% endif %}
                                 </div>
                                 <div class="erp-avatar-actions">
                                     <label for="profile_photo" class="erp-btn erp-btn-secondary erp-btn-sm">
@@ -110,19 +102,15 @@ Settings
                             <div class="erp-form-grid">
                                 <div class="erp-form-group">
                                     <label for="full_name" class="erp-label required">Full Name</label>
-                                    <input type="text" id="full_name" name="full_name" class="erp-input" placeholder="e.g. John Doe">
+                                    <input type="text" id="full_name" name="full_name" class="erp-input" value="{{ request.user.get_full_name|default:request.user.username }}" placeholder="e.g. John Doe" required>
                                 </div>
                                 <div class="erp-form-group">
                                     <label for="username" class="erp-label required">Username</label>
-                                    <input type="text" id="username" name="username" class="erp-input" placeholder="e.g. jdoe">
+                                    <input type="text" id="username" name="username" class="erp-input" value="{{ request.user.username }}" placeholder="e.g. jdoe" required>
                                 </div>
                                 <div class="erp-form-group">
                                     <label for="profile_mobile" class="erp-label">Mobile Number</label>
-                                    <input type="tel" id="profile_mobile" name="mobile" class="erp-input" placeholder="+1 (555) 000-0000">
-                                </div>
-                                <div class="erp-form-group">
-                                    <label for="profile_email" class="erp-label required">Email Address</label>
-                                    <input type="email" id="profile_email" name="email" class="erp-input" placeholder="name@company.com">
+                                    <input type="tel" id="profile_mobile" name="mobile" class="erp-input" value="{{ user_profile.mobile_number|default:'' }}" placeholder="+91 0000000000">
                                 </div>
                             </div>
 
@@ -131,18 +119,36 @@ Settings
                             <div class="erp-card-header px-0 pt-0">
                                 <h4>Change Password</h4>
                             </div>
+
                             <div class="erp-form-grid">
                                 <div class="erp-form-group">
-                                    <label for="current_password" class="erp-label">Current Password</label>
-                                    <input type="password" id="current_password" name="current_password" class="erp-input" placeholder="••••••••">
+                                    <label for="curr_password" class="erp-label">Current Password</label>
+                                    <div class="password-input-wrapper" style="position: relative;">
+                                        <input type="password" id="curr_password" name="curr_password" class="erp-input" placeholder="••••••••" style="padding-right: 40px;">
+                                        <button type="button" class="toggle-password" data-target="curr_password" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #6b7280; padding: 5px;">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
                                 </div>
+
                                 <div class="erp-form-group">
                                     <label for="new_password" class="erp-label">New Password</label>
-                                    <input type="password" id="new_password" name="new_password" class="erp-input" placeholder="••••••••">
+                                    <div class="password-input-wrapper" style="position: relative;">
+                                        <input type="password" id="new_password" name="new_password" class="erp-input" placeholder="••••••••" style="padding-right: 40px;">
+                                        <button type="button" class="toggle-password" data-target="new_password" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #6b7280; padding: 5px;">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
                                 </div>
+
                                 <div class="erp-form-group">
                                     <label for="confirm_password" class="erp-label">Confirm New Password</label>
-                                    <input type="password" id="confirm_password" name="confirm_password" class="erp-input" placeholder="••••••••">
+                                    <div class="password-input-wrapper" style="position: relative;">
+                                        <input type="password" id="confirm_password" name="confirm_password" class="erp-input" placeholder="••••••••" style="padding-right: 40px;">
+                                        <button type="button" class="toggle-password" data-target="confirm_password" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #6b7280; padding: 5px;">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -162,41 +168,24 @@ Settings
                         <p>Configure details and tax identifiers for this specific enterprise branch.</p>
                     </div>
                     <div class="erp-card-body">
-                        <form id="form-branch" class="erp-form">
+                        <form id="form-branch" class="erp-form" enctype="multipart/form-data">
+                            {% csrf_token %}
                             <div class="erp-form-grid">
-                                <div class="erp-form-group">
+                                <div class="erp-form-group erp-col-span-2">
                                     <label for="branch_name" class="erp-label required">Branch Name</label>
-                                    <input type="text" id="branch_name" name="branch_name" class="erp-input" placeholder="Main Headquarters">
-                                </div>
-                                <div class="erp-form-group">
-                                    <label for="owner_name" class="erp-label">Owner / Director Name</label>
-                                    <input type="text" id="owner_name" name="owner_name" class="erp-input" placeholder="Executive Name">
+                                    <input type="text" id="branch_name" name="branch_name" class="erp-input" value="{{ current_branch.branch_name|default:'' }}" placeholder="Main Headquarters" required>
                                 </div>
                                 <div class="erp-form-group erp-col-span-2">
                                     <label for="branch_address" class="erp-label required">Address</label>
-                                    <textarea id="branch_address" name="branch_address" class="erp-textarea" rows="3" placeholder="Full street address, state, postal code"></textarea>
+                                    <textarea id="branch_address" name="address" class="erp-textarea" rows="3" placeholder="Full street address, city, state, pincode" required>{{ current_branch.address|default:'' }}</textarea>
                                 </div>
                                 <div class="erp-form-group">
                                     <label for="gst_number" class="erp-label">GST / Tax Identification Number</label>
-                                    <input type="text" id="gst_number" name="gst_number" class="erp-input" placeholder="22AAAAA0000A1Z5">
+                                    <input type="text" id="gst_number" name="gst_number" class="erp-input" value="{{ current_branch.gst_number|default:'' }}" placeholder="22AAAAA0000A1Z5">
                                 </div>
                                 <div class="erp-form-group">
                                     <label for="branch_phone" class="erp-label required">Phone</label>
-                                    <input type="tel" id="branch_phone" name="branch_phone" class="erp-input" placeholder="+1 (555) 000-0000">
-                                </div>
-                                <div class="erp-form-group">
-                                    <label for="branch_email" class="erp-label required">Email</label>
-                                    <input type="email" id="branch_email" name="branch_email" class="erp-input" placeholder="branch@company.com">
-                                </div>
-                                <div class="erp-form-group">
-                                    <label class="erp-label">Branch Logo Upload</label>
-                                    <div class="erp-file-upload-box">
-                                        <input type="file" id="branch_logo" name="branch_logo" class="erp-file-input" accept="image/*">
-                                        <div class="erp-upload-content">
-                                            <svg class="erp-upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                                            <span>Drop file here or click to browse</span>
-                                        </div>
-                                    </div>
+                                    <input type="tel" id="branch_phone" name="phone" class="erp-input" value="{{ current_branch.phone|default:'' }}" placeholder="+91 0000000000" required>
                                 </div>
                             </div>
                             <div class="erp-form-actions">
@@ -215,9 +204,11 @@ Settings
                             <h3>User Management</h3>
                             <p>Manage system users, roles, and branch assignments.</p>
                         </div>
+                        {% if request.user.is_superuser or request.user.userprofile.role == 'SUPER_ADMIN' %}
                         <button type="button" class="erp-btn erp-btn-primary" id="btn-open-user-modal">
                             + Add User
                         </button>
+                        {% endif %}
                     </div>
                     <div class="erp-card-body p-0">
                         <div class="erp-table-responsive">
@@ -228,18 +219,33 @@ Settings
                                         <th>Username</th>
                                         <th>Role</th>
                                         <th>Branch</th>
-                                        <th>Status</th>
-                                        <th>Last Login</th>
-                                        <th class="text-right">Actions</th>
+                                        <th>Actions</th>
                                     </tr>
                                 </thead>
-                                <tbody>
-                                    <!-- Production Ready Table State / Data Container -->
-                                    <tr class="erp-empty-row">
-                                        <td colspan="7" class="text-center py-4 text-muted">
-                                            No active users loaded. Click "+ Add User" to add a new account.
+                                <tbody id="user-table-body">
+                                    {% for u in users_list %}
+                                    <tr>
+                                        <td>{{ u.get_full_name|default:u.username }}</td>
+                                        <td>{{ u.username }}</td>
+                                        <td>{{ u.userprofile.get_role_display }}</td>
+                                        <td>{{ u.userprofile.branch.branch_name }}</td>
+                                        <td>
+                                            <form action="{% url 'yakuza:toggle_user_status' u.id %}" method="POST" style="margin: 0; display: flex; align-items: center;">
+                                                {% csrf_token %}
+                                                <label class="erp-switch erp-switch-sm" title="Toggle User Active Status">
+                                                    <input type="checkbox" onchange="this.form.submit()" {% if u.is_active %}checked{% endif %}>
+                                                    <span class="erp-slider"></span>
+                                                </label>
+                                            </form>
                                         </td>
                                     </tr>
+                                    {% empty %}
+                                    <tr class="erp-empty-row">
+                                        <td colspan="5" class="text-center py-4 text-muted">
+                                            No users loaded. Click "+ Add User" to add a new account.
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
                                 </tbody>
                             </table>
                         </div>
@@ -255,60 +261,49 @@ Settings
                         <p>Configure parameters for customer invoice generation and legal compliance.</p>
                     </div>
                     <div class="erp-card-body">
-                        <form id="form-invoice" class="erp-form">
+                        <form id="form-invoice" class="erp-form" enctype="multipart/form-data">
+                            {% csrf_token %}
                             <div class="erp-form-grid">
                                 <div class="erp-form-group">
                                     <label for="inv_company_name" class="erp-label required">Company Legal Name</label>
-                                    <input type="text" id="inv_company_name" name="company_name" class="erp-input" placeholder="Enterprise Corp Ltd">
+                                    <input type="text" id="inv_company_name" name="company_name" class="erp-input" value="{{ invoice_settings.company_name|default:settings_obj.company_name|default:'' }}" placeholder="Enterprise Corp Ltd" required>
                                 </div>
+                                
                                 <div class="erp-form-group">
                                     <label for="inv_prefix" class="erp-label required">Invoice Prefix</label>
-                                    <input type="text" id="inv_prefix" name="invoice_prefix" class="erp-input" placeholder="INV-2026-">
+                                    <input type="text" id="inv_prefix" name="invoice_prefix" class="erp-input" value="{{ invoice_settings.invoice_prefix|default:settings_obj.invoice_prefix|default:'' }}" placeholder="INV-2026-" required>
                                 </div>
+                                
                                 <div class="erp-form-group erp-col-span-2">
                                     <label for="inv_address" class="erp-label required">Company Address</label>
-                                    <textarea id="inv_address" name="company_address" class="erp-textarea" rows="2" placeholder="Registered office address"></textarea>
+                                    <textarea id="inv_address" name="company_address" class="erp-textarea" rows="2" placeholder="Registered office address" required>{{ invoice_settings.company_address|default:settings_obj.company_address|default:'' }}</textarea>
                                 </div>
                                 <div class="erp-form-group">
                                     <label for="inv_gstin" class="erp-label">GSTIN / Tax ID</label>
-                                    <input type="text" id="inv_gstin" name="gstin" class="erp-input" placeholder="22AAAAA0000A1Z5">
+                                    <input type="text" id="inv_gstin" name="gstin" class="erp-input" value="{{ invoice_settings.gstin|default:settings_obj.gstin|default:'' }}" placeholder="22AAAAA0000A1Z5">
                                 </div>
                                 <div class="erp-form-group">
                                     <label for="inv_phone" class="erp-label required">Phone</label>
-                                    <input type="tel" id="inv_phone" name="phone" class="erp-input" placeholder="+1 (555) 000-0000">
-                                </div>
-                                <div class="erp-form-group erp-col-span-2">
-                                    <label for="inv_email" class="erp-label required">Billing Email</label>
-                                    <input type="email" id="inv_email" name="email" class="erp-input" placeholder="billing@company.com">
+                                    <input type="tel" id="inv_phone" name="phone" class="erp-input" value="{{ invoice_settings.phone|default:'' }}" placeholder="+91 0000000000" required>
                                 </div>
                                 <div class="erp-form-group erp-col-span-2">
                                     <label for="inv_terms" class="erp-label">Terms &amp; Conditions</label>
-                                    <textarea id="inv_terms" name="terms" class="erp-textarea" rows="3" placeholder="Standard invoice payment terms and legal notices..."></textarea>
+                                    <textarea id="inv_terms" name="terms" class="erp-textarea" rows="3" placeholder="Standard invoice payment terms...">{{ invoice_settings.terms|default:'' }}</textarea>
                                 </div>
                             </div>
 
-                            <div class="erp-media-upload-grid">
-                                <div class="erp-media-card">
-                                    <label class="erp-label">Company Logo</label>
-                                    <div class="erp-preview-box" id="logo-preview-box">
+                            <div class="erp-media-card">
+                                <label class="erp-label">Company Logo</label>
+                                <div class="erp-preview-box" id="logo-preview-box">
+                                    {% if invoice_settings.logo %}
+                                        <img src="{{ invoice_settings.logo.url }}" style="max-height: 100%; max-width: 100%; object-fit: contain;">
+                                    {% elif settings_obj.logo %}
+                                        <img src="{{ settings_obj.logo.url }}" style="max-height: 100%; max-width: 100%; object-fit: contain;">
+                                    {% else %}
                                         <span class="text-muted">No Logo Selected</span>
-                                    </div>
-                                    <input type="file" id="inv_logo" name="company_logo" accept="image/*" class="erp-file-input">
+                                    {% endif %}
                                 </div>
-                                <div class="erp-media-card">
-                                    <label class="erp-label">Authorized Signature</label>
-                                    <div class="erp-preview-box" id="sig-preview-box">
-                                        <span class="text-muted">No Signature Selected</span>
-                                    </div>
-                                    <input type="file" id="inv_sig" name="authorized_signature" accept="image/*" class="erp-file-input">
-                                </div>
-                                <div class="erp-media-card">
-                                    <label class="erp-label">Company Seal / Stamp</label>
-                                    <div class="erp-preview-box" id="seal-preview-box">
-                                        <span class="text-muted">No Seal Selected</span>
-                                    </div>
-                                    <input type="file" id="inv_seal" name="company_seal" accept="image/*" class="erp-file-input">
-                                </div>
+                                <input type="file" id="inv_logo" name="logo" accept="image/*" class="erp-file-input">
                             </div>
 
                             <div class="erp-form-actions">
@@ -328,13 +323,14 @@ Settings
                     </div>
                     <div class="erp-card-body">
                         <form id="form-notifications" class="erp-form">
+                            {% csrf_token %}
                             <div class="erp-setting-row">
                                 <div class="erp-setting-info">
                                     <span class="erp-setting-title">System Notifications</span>
                                     <span class="erp-setting-desc">Enable or disable real-time system and operational alerts.</span>
                                 </div>
                                 <label class="erp-switch">
-                                    <input type="checkbox" id="notification_toggle" name="notification_status" checked>
+                                    <input type="checkbox" id="notification_toggle" name="notification_status" {% if settings_obj.notification_status %}checked{% endif %}>
                                     <span class="erp-slider"></span>
                                 </label>
                             </div>
@@ -346,242 +342,100 @@ Settings
                                 </div>
                                 <div class="erp-setting-control">
                                     <select id="auto_delete_days" name="auto_delete_days" class="erp-select">
-                                        <option value="7">7 Days</option>
-                                        <option value="15">15 Days</option>
-                                        <option value="30" selected>30 Days</option>
-                                        <option value="60">60 Days</option>
-                                        <option value="90">90 Days</option>
-                                        <option value="365">365 Days</option>
-                                        <option value="never">Never</option>
+                                        <option value="7" {% if settings_obj.auto_delete_days == "7" %}selected{% endif %}>7 Days</option>
+                                        <option value="15" {% if settings_obj.auto_delete_days == "15" %}selected{% endif %}>15 Days</option>
+                                        <option value="30" {% if settings_obj.auto_delete_days == "30" %}selected{% endif %}>30 Days</option>
+                                        <option value="60" {% if settings_obj.auto_delete_days == "60" %}selected{% endif %}>60 Days</option>
+                                        <option value="90" {% if settings_obj.auto_delete_days == "90" %}selected{% endif %}>90 Days</option>
+                                        <option value="365" {% if settings_obj.auto_delete_days == "365" %}selected{% endif %}>365 Days</option>
+                                        <option value="never" {% if settings_obj.auto_delete_days == "never" %}selected{% endif %}>Never</option>
                                     </select>
                                 </div>
                             </div>
 
                             <div class="erp-form-actions">
-                                <button type="submit" class="erp-btn erp-btn-primary">Save Preference</button>
+                                <button type="submit" class="erp-btn erp-btn-primary">Save Notifications</button>
                             </div>
                         </form>
                     </div>
                 </div>
             </section>
 
-            <!-- SECTION 6: SYSTEM PREFERENCES -->
-            <section id="section-preferences" class="erp-section" role="tabpanel">
-                <div class="erp-card">
-                    <div class="erp-card-header">
-                        <h3>System Preferences</h3>
-                        <p>Set regional standards, display options, and localization configurations.</p>
-                    </div>
-                    <div class="erp-card-body">
-                        <form id="form-preferences" class="erp-form">
-                            <div class="erp-form-grid">
-                                <div class="erp-form-group">
-                                    <label for="pref_currency" class="erp-label required">Currency</label>
-                                    <select id="pref_currency" name="currency" class="erp-select">
-                                        <option value="USD">USD ($) - US Dollar</option>
-                                        <option value="EUR">EUR (€) - Euro</option>
-                                        <option value="GBP">GBP (£) - British Pound</option>
-                                        <option value="INR">INR (₹) - Indian Rupee</option>
-                                        <option value="AED">AED (د.إ) - UAE Dirham</option>
-                                    </select>
-                                </div>
-                                <div class="erp-form-group">
-                                    <label for="pref_language" class="erp-label required">Language</label>
-                                    <select id="pref_language" name="language" class="erp-select">
-                                        <option value="en-US">English (US)</option>
-                                        <option value="en-GB">English (UK)</option>
-                                        <option value="es">Spanish</option>
-                                        <option value="fr">French</option>
-                                        <option value="de">German</option>
-                                    </select>
-                                </div>
-                                <div class="erp-form-group">
-                                    <label for="pref_date_format" class="erp-label required">Date Format</label>
-                                    <select id="pref_date_format" name="date_format" class="erp-select">
-                                        <option value="YYYY-MM-DD">YYYY-MM-DD (2026-08-06)</option>
-                                        <option value="DD/MM/YYYY">DD/MM/YYYY (06/08/2026)</option>
-                                        <option value="MM/DD/YYYY">MM/DD/YYYY (08/06/2026)</option>
-                                        <option value="DD-MMM-YYYY">DD-MMM-YYYY (06-Aug-2026)</option>
-                                    </select>
-                                </div>
-                                <div class="erp-form-group">
-                                    <label for="pref_time_format" class="erp-label required">Time Format</label>
-                                    <select id="pref_time_format" name="time_format" class="erp-select">
-                                        <option value="12h">12 Hours (03:52 PM)</option>
-                                        <option value="24h">24 Hours (15:52)</option>
-                                    </select>
-                                </div>
-                                <div class="erp-form-group">
-                                    <label for="pref_decimal" class="erp-label required">Decimal Precision</label>
-                                    <select id="pref_decimal" name="decimal_precision" class="erp-select">
-                                        <option value="2">2 Decimals (0.00)</option>
-                                        <option value="3">3 Decimals (0.000)</option>
-                                        <option value="4">4 Decimals (0.0000)</option>
-                                    </select>
-                                </div>
-                                <div class="erp-form-group">
-                                    <label for="pref_theme" class="erp-label required">Theme Style</label>
-                                    <select id="pref_theme" name="theme" class="erp-select">
-                                        <option value="corporate_light">Corporate Light</option>
-                                        <option value="corporate_dark">Corporate Dark</option>
-                                        <option value="high_contrast">High Contrast</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="erp-form-actions">
-                                <button type="submit" class="erp-btn erp-btn-primary">Save Preferences</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </section>
-
-            <!-- SECTION 7: AUDIT LOG -->
+            <!-- SECTION 6: AUDIT LOG -->
             <section id="section-audit" class="erp-section" role="tabpanel">
                 <div class="erp-card">
-                    <div class="erp-card-header">
-                        <h3>System Audit Trail</h3>
-                        <p>Track administrative operations, security events, and user activities.</p>
-                    </div>
-                    <div class="erp-card-body">
-                        <!-- Toolbar Controls -->
-                        <div class="erp-audit-toolbar">
-                            <div class="erp-toolbar-row">
-                                <div class="erp-search-box">
-                                    <input type="text" id="audit-search" class="erp-input" placeholder="Search logs by keyword, IP, action...">
-                                </div>
-                                <div class="erp-export-buttons">
-                                    <button type="button" class="erp-btn erp-btn-outline erp-btn-sm" id="btn-export-csv">Export CSV</button>
-                                    <button type="button" class="erp-btn erp-btn-outline erp-btn-sm" id="btn-export-excel">Export Excel</button>
-                                    <button type="button" class="erp-btn erp-btn-outline erp-btn-sm" id="btn-export-pdf">Export PDF</button>
-                                    <button type="button" class="erp-btn erp-btn-danger-outline erp-btn-sm erp-superuser-only" id="btn-clear-audit">Clear Audit Log</button>
-                                </div>
-                            </div>
-                            <div class="erp-toolbar-filters">
-                                <select id="audit-filter-date" class="erp-select-sm">
-                                    <option value="today">Today</option>
-                                    <option value="yesterday">Yesterday</option>
-                                    <option value="last_7">Last 7 Days</option>
-                                    <option value="last_30" selected>Last 30 Days</option>
-                                    <option value="custom">Custom Range</option>
-                                </select>
-                                <select id="audit-filter-user" class="erp-select-sm">
-                                    <option value="">All Users</option>
-                                </select>
-                                <select id="audit-filter-branch" class="erp-select-sm">
-                                    <option value="">All Branches</option>
-                                </select>
-                                <select id="audit-filter-module" class="erp-select-sm">
-                                    <option value="">All Modules</option>
-                                    <option value="Auth">Authentication</option>
-                                    <option value="Users">User Management</option>
-                                    <option value="Settings">Settings</option>
-                                    <option value="Billing">Billing/Invoices</option>
-                                </select>
-                            </div>
+                    <div class="erp-card-header erp-header-flex">
+                        <div>
+                            <h3>Audit Logs</h3>
+                            <p>Track user actions, changes, and system events across modules.</p>
                         </div>
+                        <div class="erp-header-actions" style="display: flex; gap: 8px; align-items: center;">
+                        <!-- Export CSV Link (Text decoration none added) -->
+                        <a href="{% url 'yakuza:export_audit_csv' %}" class="erp-btn erp-btn-secondary" style="text-decoration: none;">
+                            <i class="fas fa-file-csv" style="margin-right: 5px; color: #16a34a;"></i> Export CSV
+                        </a>
+                        
+                        <!-- Export PDF Link (Text decoration none added) -->
+                        <a href="{% url 'yakuza:export_audit_pdf' %}" class="erp-btn erp-btn-secondary" style="text-decoration: none;">
+                            <i class="fas fa-file-pdf" style="margin-right: 5px; color: #dc2626;"></i> Export PDF
+                        </a>
 
-                        <!-- Audit Table -->
-                        <div class="erp-table-responsive mt-3">
-                            <table class="erp-table erp-table-striped" id="audit-log-table">
+                        
+                    </div>
+                    </div>
+                    <div class="erp-card-body p-0">
+                        <div class="erp-table-responsive">
+                            <table class="erp-table">
                                 <thead>
                                     <tr>
-                                        <th>Date</th>
-                                        <th>Time</th>
                                         <th>User</th>
-                                        <th>Role</th>
-                                        <th>Branch</th>
-                                        <th>Module</th>
-                                        <th>Action</th>
-                                        <th>Status</th>
-                                        <th>IP Address</th>
+                                        <th>Old Price</th>
+                                        <th>Updated Price</th>
+                                        <th>Date/Time</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr class="erp-empty-row">
-                                        <td colspan="9" class="text-center py-4 text-muted">
-                                            No audit logs recorded for the selected filter range.
-                                        </td>
-                                    </tr>
-                                </tbody>
+                                    {% for log in audit_logs %}
+            <tr>
+                <td>{{ log.user.get_full_name|default:log.user.username|default:"System" }}</td>
+                <td>{{ log.old_value.price|default:"—" }}</td>
+                <td>{{ log.new_value.price|default:"—" }}</td>
+                <td>{{ log.timestamp|date:"Y-m-d H:i" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="4" class="text-center text-muted">No audit logs found.</td>
+            </tr>
+            {% endfor %}
+                                </tbody>    
                             </table>
                         </div>
                     </div>
                 </div>
             </section>
-
-            <!-- SECTION 8: BACKUP & RESTORE -->
-            <section id="section-backup" class="erp-section erp-superuser-only" role="tabpanel">
+            <!-- SECTION 7: BACKUP & RESTORE -->
+            <section id="section-backup" class="erp-section" role="tabpanel">
                 <div class="erp-card">
                     <div class="erp-card-header">
                         <h3>Database Backup &amp; Recovery</h3>
-                        <p>Generate, download, and restore system snapshots and database dumps.</p>
+                        <p>Generate and restore system snapshots and database dumps.</p>
                     </div>
                     <div class="erp-card-body">
                         <div class="erp-status-grid">
                             <div class="erp-status-card">
                                 <span class="erp-status-label">Last Backup Date</span>
-                                <span class="erp-status-value" id="last-backup-date">Not Recorded</span>
+                                <span class="erp-status-value" id="last-backup-date">{{ last_backup.created_at|date:"Y-m-d H:i:s"|default:"Not Recorded" }}</span>
                             </div>
                             <div class="erp-status-card">
                                 <span class="erp-status-label">Backup Size</span>
-                                <span class="erp-status-value" id="last-backup-size">0.00 MB</span>
+                                <span class="erp-status-value" id="last-backup-size">{{ last_backup.file_size|default:"0.00 MB" }}</span>
                             </div>
                         </div>
 
                         <div class="erp-backup-actions">
-                            <button type="button" class="erp-btn erp-btn-primary" id="btn-backup-now">
-                                Backup Database
-                            </button>
-                            <button type="button" class="erp-btn erp-btn-secondary" id="btn-download-backup">
-                                Download Backup
-                            </button>
-                            <button type="button" class="erp-btn erp-btn-danger" id="btn-trigger-restore">
-                                Restore Database
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- SECTION 9: ABOUT -->
-            <section id="section-about" class="erp-section" role="tabpanel">
-                <div class="erp-card">
-                    <div class="erp-card-header">
-                        <h3>About ERP System</h3>
-                        <p>System runtime information, framework builds, and license metadata.</p>
-                    </div>
-                    <div class="erp-card-body">
-                        <div class="erp-about-grid">
-                            <div class="erp-about-item">
-                                <span class="erp-about-key">Software Name</span>
-                                <span class="erp-about-val">GATISTVAM E-Bike</span>
-                            </div>
-                            <div class="erp-about-item">
-                                <span class="erp-about-key">Version</span>
-                                <span class="erp-about-val">v4.2.0-Production</span>
-                            </div>
-                            
-                            <div class="erp-about-item">
-                                <span class="erp-about-key">Database Engine</span>
-                                <span class="erp-about-val">PostgreSQL 15.4</span>
-                            </div>
-                            <div class="erp-about-item">
-                                <span class="erp-about-key">Python Version</span>
-                                <span class="erp-about-val">3.11.5</span>
-                            </div>
-                            <div class="erp-about-item">
-                                <span class="erp-about-key">Django Version</span>
-                                <span class="erp-about-val">4.2.11 LTS</span>
-                            </div>
-                            <div class="erp-about-item">
-                                <span class="erp-about-key">License Status</span>
-                                <span class="erp-about-val text-success">Commercial Enterprise License (Active)</span>
-                            </div>
-                            <div class="erp-about-item">
-                                <span class="erp-about-key">System Last Backup</span>
-                                <span class="erp-about-val" id="about-last-backup">2026-08-06 00:00:00</span>
-                            </div>
+                            <button type="button" class="erp-btn erp-btn-primary" id="btn-backup-now">Backup Database</button>
+                            <input type="file" id="backup-file-input" accept="application/json" hidden>
+                            <button type="button" class="erp-btn erp-btn-danger" id="btn-trigger-restore">Restore Database</button>
                         </div>
                     </div>
                 </div>
@@ -595,14 +449,15 @@ Settings
 <!-- MODALS & POPUPS                            -->
 <!-- ========================================== -->
 
-<!-- Modal 1: Add/Edit User Modal -->
+<!-- Add User Modal -->
 <div class="erp-modal-backdrop" id="modal-user" hidden>
-    <div class="erp-modal" role="dialog" aria-labelledby="modal-user-title">
+    <div class="erp-modal" role="dialog">
         <div class="erp-modal-header">
             <h4 id="modal-user-title">Add New System User</h4>
             <button type="button" class="erp-modal-close" data-dismiss="modal">&times;</button>
         </div>
         <form id="form-user-modal">
+            {% csrf_token %}
             <div class="erp-modal-body">
                 <div class="erp-form-grid">
                     <div class="erp-form-group">
@@ -614,30 +469,33 @@ Settings
                         <input type="text" id="u_username" name="username" class="erp-input" required>
                     </div>
                     <div class="erp-form-group">
-                        <label for="u_password" class="erp-label required">Password</label>
-                        <input type="password" id="u_password" name="password" class="erp-input" required>
-                    </div>
-                    <div class="erp-form-group">
-                        <label for="u_confirm_password" class="erp-label required">Confirm Password</label>
-                        <input type="password" id="u_confirm_password" name="confirm_password" class="erp-input" required>
-                    </div>
+                    <label for="u_password" class="erp-label required">Password</label>
+                    <input
+                        type="password"
+                        id="u_password"
+                        name="password"
+                        class="erp-input"
+                        required
+                        autocomplete="new-password"
+                    >
+                </div>
+
+                <div class="erp-form-group">
+                    <label for="u_confirm_password" class="erp-label required">Confirm Password</label>
+                    <input
+                        type="password"
+                        id="u_confirm_password"
+                        name="confirm_password"
+                        class="erp-input"
+                        required
+                        autocomplete="new-password"
+                    >
+                </div>
                     <div class="erp-form-group">
                         <label for="u_role" class="erp-label required">Role</label>
                         <select id="u_role" name="role" class="erp-select" required>
-                            <option value="">Select Role</option>
-                            <option value="Super User">Super User</option>
-                            <option value="Branch Admin">Branch Admin</option>
-                            <option value="Manager">Manager</option>
-                            <option value="Operator">Operator</option>
+                            <option value="SUPER_ADMIN">Super User</option>
                         </select>
-                    </div>
-                    <div class="erp-form-group">
-                        <label for="u_mobile" class="erp-label">Mobile</label>
-                        <input type="tel" id="u_mobile" name="mobile" class="erp-input">
-                    </div>
-                    <div class="erp-form-group">
-                        <label for="u_email" class="erp-label required">Email</label>
-                        <input type="email" id="u_email" name="email" class="erp-input" required>
                     </div>
                     <div class="erp-form-group">
                         <label for="u_status" class="erp-label required">Status</label>
@@ -656,46 +514,43 @@ Settings
     </div>
 </div>
 
-<!-- Modal 2: Restore Database Confirmation Modal -->
-<div class="erp-modal-backdrop" id="modal-restore-confirm" hidden>
+
+
+<!-- Restore Backup Confirmation Modal -->
+<div class="erp-modal-backdrop" id="modal-confirm-restore" hidden>
     <div class="erp-modal erp-modal-sm" role="dialog">
-        <div class="erp-modal-header border-0 pb-0">
-            <h4 class="text-danger">⚠️ Confirm Database Restore</h4>
+        <div class="erp-modal-header">
+            <h4>Restore Database</h4>
             <button type="button" class="erp-modal-close" data-dismiss="modal">&times;</button>
         </div>
         <div class="erp-modal-body">
-            <p>Are you sure you want to restore the database? This action will overwrite existing records and cannot be undone.</p>
-            <div class="erp-form-group mt-3">
-                <label for="restore_file" class="erp-label required">Select Backup File (.sql / .dump)</label>
-                <input type="file" id="restore_file" class="erp-input" accept=".sql,.dump,.gz">
-            </div>
+            <p>Restoring will replace all current data for <strong>{{ current_branch.branch_name|default:"the current branch" }}</strong> with the contents of the selected backup file. This action cannot be undone and will not affect other branches.</p>
         </div>
         <div class="erp-modal-footer">
             <button type="button" class="erp-btn erp-btn-secondary" data-dismiss="modal">Cancel</button>
-            <button type="button" class="erp-btn erp-btn-danger" id="btn-confirm-restore-action">Proceed Restore</button>
+            <button type="button" class="erp-btn erp-btn-danger" id="btn-confirm-restore">Restore Database</button>
         </div>
     </div>
 </div>
 
-<!-- Modal 3: Unsaved Changes Modal -->
+<!-- Unsaved Changes Modal -->
 <div class="erp-modal-backdrop" id="modal-unsaved-changes" hidden>
     <div class="erp-modal erp-modal-sm" role="dialog">
         <div class="erp-modal-header">
             <h4>Unsaved Changes</h4>
-            <button type="button" class="erp-modal-close" data-dismiss="modal">&times;</button>
+            <button type="button" class="erp-modal-close" id="btn-unsaved-close" data-dismiss="modal">&times;</button>
         </div>
         <div class="erp-modal-body">
-            <p>You have unsaved changes in this section. Do you want to save them before switching?</p>
+            <p>You have unsaved changes. Do you want to save them before proceeding?</p>
         </div>
         <div class="erp-modal-footer">
-            <button type="button" class="erp-btn erp-btn-secondary" id="btn-unsaved-cancel">Cancel</button>
-            <button type="button" class="erp-btn erp-btn-danger-outline" id="btn-unsaved-discard">Discard</button>
-            <button type="button" class="erp-btn erp-btn-primary" id="btn-unsaved-save">Save Changes</button>
+            <button type="button" class="erp-btn erp-btn-primary" id="btn-unsaved-save">SAVE</button>
+            <button type="button" class="erp-btn erp-btn-danger-outline" id="btn-unsaved-discard">DISCARD</button>
+            <button type="button" class="erp-btn erp-btn-secondary" id="btn-unsaved-cancel">CLOSE</button>
         </div>
     </div>
 </div>
 
-<!-- Global Toast Notification Container -->
 <div id="erp-toast-container" class="erp-toast-container"></div>
 {% endblock %}
 

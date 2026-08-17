@@ -1,40 +1,173 @@
-/**
- * ERP Settings Module - Pure UI Interactivity Script
- */
-
 document.addEventListener('DOMContentLoaded', function () {
     'use strict';
 
-    // State Management
-    let isFormDirty = false;
     let pendingNavTarget = null;
-    let currentRole = 'superuser';
 
-    // DOM Elements
+    // Profile original state tracking
+    let profileOriginalState = {};
+    let tempObjectUrl = null;
+    const formProfile = document.getElementById('form-profile');
+
+    function getProfileFormState() {
+        if (!formProfile) return {};
+        const profileImg = document.getElementById('profile-img-preview');
+        const placeholder = document.querySelector('.erp-avatar-placeholder');
+        
+        return {
+            full_name: document.getElementById('full_name')?.value || '',
+            username: document.getElementById('username')?.value || '',
+            mobile: document.getElementById('profile_mobile')?.value || '',
+            curr_password: document.getElementById('curr_password')?.value || '',
+            new_password: document.getElementById('new_password')?.value || '',
+            confirm_password: document.getElementById('confirm_password')?.value || '',
+            imgSrc: profileImg ? profileImg.getAttribute('src') || '' : '',
+            imgHidden: profileImg ? profileImg.hasAttribute('hidden') : true,
+            placeholderDisplay: placeholder ? placeholder.style.display || '' : ''
+        };
+    }
+
+    function initProfileOriginalState() {
+        profileOriginalState = getProfileFormState();
+    }
+
+    function revokeTempObjectUrl() {
+        if (tempObjectUrl) {
+            URL.revokeObjectURL(tempObjectUrl);
+            tempObjectUrl = null;
+        }
+    }
+
+    function isProfileFormDirty() {
+        if (!formProfile) return false;
+        
+        const currentState = getProfileFormState();
+        for (let key in profileOriginalState) {
+            if (key !== 'imgSrc' && key !== 'imgHidden' && key !== 'placeholderDisplay') {
+                if (currentState[key] !== profileOriginalState[key]) {
+                    return true;
+                }
+            }
+        }
+        
+        const photoInput = document.getElementById('profile_photo');
+        if (photoInput && photoInput.files && photoInput.files.length > 0) {
+            return true;
+        }
+        
+        return false;
+    }
+
+    function restoreProfileFormState() {
+        if (!formProfile) return;
+        
+        if (document.getElementById('full_name')) document.getElementById('full_name').value = profileOriginalState.full_name;
+        if (document.getElementById('username')) document.getElementById('username').value = profileOriginalState.username;
+        if (document.getElementById('profile_mobile')) document.getElementById('profile_mobile').value = profileOriginalState.mobile;
+        if (document.getElementById('curr_password')) document.getElementById('curr_password').value = profileOriginalState.curr_password;
+        if (document.getElementById('new_password')) document.getElementById('new_password').value = profileOriginalState.new_password;
+        if (document.getElementById('confirm_password')) document.getElementById('confirm_password').value = profileOriginalState.confirm_password;
+        
+        // Restore Photo state
+        const photoInput = document.getElementById('profile_photo');
+        if (photoInput) photoInput.value = '';
+
+        revokeTempObjectUrl();
+
+        const profileImg = document.getElementById('profile-img-preview');
+        const placeholder = document.querySelector('.erp-avatar-placeholder');
+
+        if (profileImg) {
+            profileImg.src = profileOriginalState.imgSrc;
+            if (profileOriginalState.imgHidden) {
+                profileImg.setAttribute('hidden', 'true');
+            } else {
+                profileImg.removeAttribute('hidden');
+            }
+        }
+
+        if (placeholder) {
+            placeholder.style.display = profileOriginalState.placeholderDisplay;
+        }
+    }
+
+    initProfileOriginalState();
+
+    // ==========================================
+    // 1. CSRF TOKEN & HELPERS
+    // ==========================================
+    function getCsrfToken() {
+        const tokenInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
+        if (tokenInput && tokenInput.value) return tokenInput.value;
+        const name = 'csrftoken';
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    function showModal(modalEl) { if (modalEl) modalEl.removeAttribute('hidden'); }
+    function hideModal(modalEl) { if (modalEl) modalEl.setAttribute('hidden', 'true'); }
+
+    document.querySelectorAll('[data-dismiss="modal"]').forEach(btn => {
+        btn.addEventListener('click', function () {
+            hideModal(this.closest('.erp-modal-backdrop'));
+        });
+    });
+
+    function showToast(message, type = 'success') {
+        const container = document.getElementById('erp-toast-container');
+        if (!container) return;
+
+        const toast = document.createElement('div');
+        toast.className = `erp-toast erp-toast-${type}`;
+        toast.style.cssText = `
+            padding: 12px 20px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            color: #fff;
+            background-color: ${type === 'success' ? '#10b981' : '#ef4444'};
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: opacity 0.3s ease;
+        `;
+        toast.innerHTML = `<span>${type === 'success' ? '✓' : '⚠️'}</span><span>${message}</span>`;
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+
+    // ==========================================
+    // 2. TABS NAVIGATION & UNSAVED POPUP HANDLING
+    // ==========================================
     const navItems = document.querySelectorAll('.erp-nav-item');
     const sections = document.querySelectorAll('.erp-section');
-    const roleSimulator = document.getElementById('role-simulator');
-    const globalSaveBtn = document.getElementById('global-save-btn');
-    const globalDiscardBtn = document.getElementById('global-discard-btn');
-    const toastContainer = document.getElementById('erp-toast-container');
-
-    // Modals
-    const modalUser = document.getElementById('modal-user');
-    const modalRestore = document.getElementById('modal-restore-confirm');
     const modalUnsaved = document.getElementById('modal-unsaved-changes');
-
-    /* ==========================================================================
-       1. SECTION / TAB NAVIGATION & UNSAVED CHANGES LOGIC
-       ========================================================================== */
+    const btnUnsavedSave = document.getElementById('btn-unsaved-save');
+    const btnUnsavedDiscard = document.getElementById('btn-unsaved-discard');
+    const btnUnsavedCancel = document.getElementById('btn-unsaved-cancel');
+    const btnUnsavedClose = document.getElementById('btn-unsaved-close');
 
     navItems.forEach(item => {
         item.addEventListener('click', function (e) {
             e.preventDefault();
             const targetId = this.getAttribute('data-target');
-
             if (this.classList.contains('active')) return;
 
-            if (isFormDirty) {
+            const activeSection = document.querySelector('.erp-section.active');
+            if (activeSection && activeSection.id === 'section-profile' && isProfileFormDirty()) {
                 pendingNavTarget = targetId;
                 showModal(modalUnsaved);
             } else {
@@ -47,279 +180,466 @@ document.addEventListener('DOMContentLoaded', function () {
         navItems.forEach(nav => {
             if (nav.getAttribute('data-target') === targetId) {
                 nav.classList.add('active');
-                nav.setAttribute('aria-selected', 'true');
             } else {
                 nav.classList.remove('active');
-                nav.setAttribute('aria-selected', 'false');
             }
         });
-
         sections.forEach(sec => {
-            if (sec.id === targetId) {
-                sec.classList.add('active');
-            } else {
-                sec.classList.remove('active');
+            if (sec.id === targetId) sec.classList.add('active');
+            else sec.classList.remove('active');
+        });
+        
+        // Update URL hash without jumping page to keep active tab state on page refresh
+        if (history.replaceState) {
+            history.replaceState(null, null, '#' + targetId);
+        } else {
+            window.location.hash = targetId;
+        }
+    }
+
+    // Unsaved Modal Actions
+    if (btnUnsavedSave) {
+        btnUnsavedSave.addEventListener('click', function () {
+            if (formProfile) {
+                submitProfileForm().then(success => {
+                    if (success) {
+                        hideModal(modalUnsaved);
+                        if (pendingNavTarget) {
+                            switchTab(pendingNavTarget);
+                            pendingNavTarget = null;
+                        }
+                    }
+                });
             }
         });
-
-        // Reset dirty state on tab switch
-        setDirtyState(false);
     }
 
-    // Dirty Form Change Detection
-    const allForms = document.querySelectorAll('.erp-form');
-    allForms.forEach(form => {
-        form.addEventListener('input', () => setDirtyState(true));
-        form.addEventListener('change', () => setDirtyState(true));
-    });
-
-    function setDirtyState(dirty) {
-        isFormDirty = dirty;
-        if (globalDiscardBtn) {
-            globalDiscardBtn.style.display = dirty ? 'inline-flex' : 'none';
-        }
-    }
-
-    // Unsaved Changes Modal Actions
-    document.getElementById('btn-unsaved-cancel').addEventListener('click', () => {
-        hideModal(modalUnsaved);
-        pendingNavTarget = null;
-    });
-
-    document.getElementById('btn-unsaved-discard').addEventListener('click', () => {
-        hideModal(modalUnsaved);
-        setDirtyState(false);
-        if (pendingNavTarget) {
-            switchTab(pendingNavTarget);
-            pendingNavTarget = null;
-        }
-    });
-
-    document.getElementById('btn-unsaved-save').addEventListener('click', () => {
-        hideModal(modalUnsaved);
-        triggerGlobalSave().then(() => {
+    if (btnUnsavedDiscard) {
+        btnUnsavedDiscard.addEventListener('click', function () {
+            restoreProfileFormState();
+            hideModal(modalUnsaved);
             if (pendingNavTarget) {
                 switchTab(pendingNavTarget);
                 pendingNavTarget = null;
             }
         });
-    });
+    }
 
-    /* ==========================================================================
-       2. ROLE BASED UI DEMO TOGGLE
-       ========================================================================== */
-
-    if (roleSimulator) {
-        roleSimulator.addEventListener('change', function () {
-            currentRole = this.value;
-            applyRolePermissions(currentRole);
-            showToast(`Switched view to ${currentRole === 'superuser' ? 'Super User' : 'Branch Admin'} mode`);
+    if (btnUnsavedCancel) {
+        btnUnsavedCancel.addEventListener('click', function () {
+            hideModal(modalUnsaved);
+            pendingNavTarget = null;
         });
     }
 
-    function applyRolePermissions(role) {
-        const superuserElements = document.querySelectorAll('.erp-superuser-only');
-        superuserElements.forEach(el => {
-            if (role === 'branch_admin') {
-                el.style.display = 'none';
-                // If currently on a hidden section, default back to profile
-                if (el.classList.contains('active')) {
-                    switchTab('section-profile');
-                }
-            } else {
-                el.style.display = '';
-            }
+    if (btnUnsavedClose) {
+        btnUnsavedClose.addEventListener('click', function () {
+            hideModal(modalUnsaved);
+            pendingNavTarget = null;
         });
     }
 
-    /* ==========================================================================
-       3. MODAL CONTROLS (GENERIC & SPECIFIC)
-       ========================================================================== */
+    // Initialize Active Tab from URL Hash on Page Load / Refresh
+    function loadInitialTab() {
+        let hash = window.location.hash.replace('#', '');
+        if (!hash) return;
 
-    function showModal(modalEl) {
-        if (modalEl) modalEl.removeAttribute('hidden');
-    }
-
-    function hideModal(modalEl) {
-        if (modalEl) modalEl.setAttribute('hidden', 'true');
-    }
-
-    document.querySelectorAll('[data-dismiss="modal"]').forEach(btn => {
-        btn.addEventListener('click', function () {
-            const modal = this.closest('.erp-modal-backdrop');
-            hideModal(modal);
-        });
-    });
-
-    // User Management Modal Triggers
-    const btnOpenUserModal = document.getElementById('btn-open-user-modal');
-    if (btnOpenUserModal) {
-        btnOpenUserModal.addEventListener('click', () => {
-            document.getElementById('form-user-modal').reset();
-            document.getElementById('modal-user-title').textContent = 'Add New System User';
-            showModal(modalUser);
-        });
-    }
-
-    // User Form Submit (UI Only)
-    document.getElementById('form-user-modal').addEventListener('submit', function (e) {
-        e.preventDefault();
-        hideModal(modalUser);
-        showToast('User account successfully created.');
-    });
-
-    // Restore Confirmation Modal Triggers
-    const btnTriggerRestore = document.getElementById('btn-trigger-restore');
-    if (btnTriggerRestore) {
-        btnTriggerRestore.addEventListener('click', () => showModal(modalRestore));
-    }
-
-    document.getElementById('btn-confirm-restore-action').addEventListener('click', () => {
-        const fileInput = document.getElementById('restore_file');
-        if (!fileInput.files.length) {
-            showToast('Please select a backup file first.', 'danger');
-            return;
+        // Map short alias hashes if present
+        if (hash === 'profile' || hash === 'security') {
+            hash = 'section-profile';
+        } else if (hash === 'branch') {
+            hash = 'section-branch';
+        } else if (hash === 'users' || hash === 'user-management') {
+            hash = 'section-users';
+        } else if (hash === 'invoice') {
+            hash = 'section-invoice';
+        } else if (hash === 'notifications') {
+            hash = 'section-notifications';
+        } else if (hash === 'audit') {
+            hash = 'section-audit';
+        } else if (hash === 'backup') {
+            hash = 'section-backup';
         }
-        hideModal(modalRestore);
-        showToast('Database restore initiated successfully.');
-    });
 
-    /* ==========================================================================
-       4. GLOBAL SAVE & FORM SUBMISSIONS
-       ========================================================================== */
-
-    if (globalSaveBtn) {
-        globalSaveBtn.addEventListener('click', () => triggerGlobalSave());
+        const targetSection = document.getElementById(hash);
+        if (targetSection) {
+            switchTab(hash);
+        }
     }
 
-    if (globalDiscardBtn) {
-        globalDiscardBtn.addEventListener('click', () => {
-            allForms.forEach(form => form.reset());
-            setDirtyState(false);
-            showToast('Changes discarded.');
-        });
-    }
+    loadInitialTab();
 
-    function triggerGlobalSave() {
-        return new Promise((resolve) => {
-            const spinner = globalSaveBtn.querySelector('.erp-spinner');
-            const btnText = globalSaveBtn.querySelector('.erp-btn-text');
-
-            if (spinner) spinner.removeAttribute('hidden');
-            if (btnText) btnText.textContent = 'Saving...';
-            globalSaveBtn.disabled = true;
-
-            setTimeout(() => {
-                if (spinner) spinner.setAttribute('hidden', 'true');
-                if (btnText) btnText.textContent = 'Save All Changes';
-                globalSaveBtn.disabled = false;
-
-                setDirtyState(false);
-                showToast('Settings Updated Successfully');
-                resolve();
-            }, 800);
-        });
-    }
-
-    allForms.forEach(form => {
-        form.addEventListener('submit', function (e) {
+    // ==========================================
+    // 3. PASSWORD SHOW / HIDE TOGGLE
+    // ==========================================
+    document.querySelectorAll('.toggle-password').forEach(toggleBtn => {
+        toggleBtn.addEventListener('click', function (e) {
             e.preventDefault();
-            triggerGlobalSave();
-        });
-    });
-
-    /* ==========================================================================
-       5. FILE PREVIEW HANDLERS (LOGO & SEALS)
-       ========================================================================== */
-
-    function bindImagePreview(inputId, previewBoxId) {
-        const input = document.getElementById(inputId);
-        const box = document.getElementById(previewBoxId);
-        if (!input || !box) return;
-
-        input.addEventListener('change', function () {
-            const file = this.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function (e) {
-                    box.innerHTML = `<img src="${e.target.result}" style="max-height: 100%; max-width: 100%; object-fit: contain;">`;
-                    setDirtyState(true);
-                };
-                reader.readAsDataURL(file);
+            const targetId = this.getAttribute('data-target');
+            const input = document.getElementById(targetId);
+            const icon = this.querySelector('i');
+            
+            if (input) {
+                const isPassword = input.type === 'password';
+                input.type = isPassword ? 'text' : 'password';
+                
+                if (icon) {
+                    if (isPassword) {
+                        icon.classList.remove('fa-eye');
+                        icon.classList.add('fa-eye-slash');
+                    } else {
+                        icon.classList.remove('fa-eye-slash');
+                        icon.classList.add('fa-eye');
+                    }
+                }
             }
         });
-    }
+    });
 
-    bindImagePreview('inv_logo', 'logo-preview-box');
-    bindImagePreview('inv_sig', 'sig-preview-box');
-    bindImagePreview('inv_seal', 'seal-preview-box');
-
-    // Profile photo preview
+    // ==========================================
+    // 4. LIVE PROFILE PHOTO PREVIEW
+    // ==========================================
     const profileInput = document.getElementById('profile_photo');
     const profileImg = document.getElementById('profile-img-preview');
-    const profilePlaceholder = document.querySelector('.erp-avatar-placeholder');
+    const placeholder = document.querySelector('.erp-avatar-placeholder');
 
     if (profileInput) {
         profileInput.addEventListener('change', function () {
             const file = this.files[0];
             if (file) {
-                const reader = new FileReader();
-                reader.onload = function (e) {
-                    profileImg.src = e.target.result;
+                revokeTempObjectUrl();
+                tempObjectUrl = URL.createObjectURL(file);
+                if (profileImg) {
+                    profileImg.src = tempObjectUrl;
                     profileImg.removeAttribute('hidden');
-                    if (profilePlaceholder) profilePlaceholder.style.display = 'none';
-                    setDirtyState(true);
-                };
-                reader.readAsDataURL(file);
+                    if (placeholder) placeholder.style.display = 'none';
+                }
             }
         });
     }
 
-    /* ==========================================================================
-       6. BACKUP BUTTON ACTION HANDLERS
-       ========================================================================== */
+    // ==========================================
+    // 5. DATABASE FORM SUBMIT HANDLERS
+    // ==========================================
 
-    const btnBackupNow = document.getElementById('btn-backup-now');
-    if (btnBackupNow) {
-        btnBackupNow.addEventListener('click', function () {
-            showToast('Generating database backup snapshot...');
-            setTimeout(() => {
-                const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
-                document.getElementById('last-backup-date').textContent = now;
-                document.getElementById('last-backup-size').textContent = '42.8 MB';
-                document.getElementById('about-last-backup').textContent = now;
-                showToast('Backup completed successfully.');
-            }, 1200);
+    function submitProfileForm() {
+        return new Promise((resolve) => {
+            const currPass = document.getElementById('curr_password')?.value.trim() || '';
+            const newPass = document.getElementById('new_password')?.value.trim() || '';
+            const confirmPass = document.getElementById('confirm_password')?.value.trim() || '';
+
+            if (newPass !== '' || confirmPass !== '' || currPass !== '') {
+                if (currPass === '') {
+                    showToast('વર્તમાન પાસવર્ડ (Current Password) નાખવો ફરજિયાત છે!', 'danger');
+                    document.getElementById('curr_password')?.focus();
+                    resolve(false);
+                    return;
+                }
+
+                if (newPass !== confirmPass) {
+                    showToast('નવો પાસવર્ડ અને કન્ફર્મ પાસવર્ડ સરખા નથી!', 'danger');
+                    document.getElementById('confirm_password')?.focus();
+                    resolve(false);
+                    return;
+                }
+
+                if (newPass.length < 6) {
+                    showToast('નવો પાસવર્ડ ઓછામાં ઓછો 6 અક્ષરનો હોવો જોઈએ!', 'danger');
+                    document.getElementById('new_password')?.focus();
+                    resolve(false);
+                    return;
+                }
+            }
+
+            const formData = new FormData(formProfile);
+
+            fetch('/settings/update-profile/', {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-CSRFToken': getCsrfToken() }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showToast(data.message || 'Profile updated successfully!', 'success');
+                    if (document.getElementById('curr_password')) document.getElementById('curr_password').value = '';
+                    if (document.getElementById('new_password')) document.getElementById('new_password').value = '';
+                    if (document.getElementById('confirm_password')) document.getElementById('confirm_password').value = '';
+                    // The photo <input type="file"> is never cleared by the
+                    // browser on an AJAX submit (only a native form submit /
+                    // page reload does that). Without resetting it here,
+                    // isProfileFormDirty() keeps seeing a selected file and
+                    // treats the form as dirty forever after a successful
+                    // save, popping the "unsaved changes" modal on every
+                    // later tab switch even though nothing is unsaved.
+                    const profilePhotoInput = document.getElementById('profile_photo');
+                    if (profilePhotoInput) profilePhotoInput.value = '';
+
+                    if (data.profile_photo_url && profileImg) {
+                        profileImg.src = data.profile_photo_url;
+                        profileImg.removeAttribute('hidden');
+                        if (placeholder) placeholder.style.display = 'none';
+                    }
+                    revokeTempObjectUrl();
+                    initProfileOriginalState();
+                    resolve(true);
+                } else {
+                    showToast(data.message || 'Error updating profile', 'danger');
+                    resolve(false);
+                }
+            })
+            .catch(() => {
+                showToast('Network or server error updating profile', 'danger');
+                resolve(false);
+            });
         });
     }
 
-    const btnDownloadBackup = document.getElementById('btn-download-backup');
-    if (btnDownloadBackup) {
-        btnDownloadBackup.addEventListener('click', function () {
-            showToast('Backup download started.');
+    // A. Profile Form Submit
+    if (formProfile) {
+        formProfile.addEventListener('submit', function (e) {
+            e.preventDefault();
+            submitProfileForm();
         });
     }
 
-    /* ==========================================================================
-       7. TOAST NOTIFICATION SYSTEM
-       ========================================================================== */
+    // B. Branch Form Submit
+    const formBranch = document.getElementById('form-branch');
+    if (formBranch) {
+        formBranch.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            fetch('/settings/update-branch/', {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-CSRFToken': getCsrfToken() }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showToast(data.message || 'Branch details updated successfully!', 'success');
+                } else {
+                    showToast(data.message || 'Error updating branch', 'danger');
+                }
+            })
+            .catch(() => showToast('Failed to update branch details', 'danger'));
+        });
+    }
 
-    function showToast(message, type = 'success') {
-        if (!toastContainer) return;
+    // C. Invoice Form Submit
+    const formInvoice = document.getElementById('form-invoice');
+    if (formInvoice) {
+        formInvoice.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            fetch('/settings/update-invoice/', {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-CSRFToken': getCsrfToken() }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showToast(data.message || 'Invoice settings saved successfully!', 'success');
+                } else {
+                    showToast(data.message || 'Error saving invoice settings', 'danger');
+                }
+            })
+            .catch(() => showToast('Error connecting to database', 'danger'));
+        });
+    }
 
-        const toast = document.createElement('div');
-        toast.className = `erp-toast erp-toast-${type}`;
-        toast.innerHTML = `
-            <span>${type === 'success' ? '✓' : '⚠️'}</span>
-            <span>${message}</span>
-        `;
+    // D. Notifications Form Submit
+    const formNotifications = document.getElementById('form-notifications');
+    if (formNotifications) {
+        formNotifications.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            fetch('/settings/update-notifications/', {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-CSRFToken': getCsrfToken() }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showToast(data.message || 'Notification preferences saved!', 'success');
+                } else {
+                    showToast(data.message || 'Failed to save notifications', 'danger');
+                }
+            })
+            .catch(() => showToast('Database submission failed', 'danger'));
+        });
+    }
 
-        toastContainer.appendChild(toast);
+    // ==========================================
+    // 6. USER MANAGEMENT & MODALS
+    // ==========================================
+    const btnOpenUserModal = document.getElementById('btn-open-user-modal');
+    const modalUser = document.getElementById('modal-user');
 
-        setTimeout(() => {
-            toast.style.opacity = '0';
-            toast.style.transition = 'opacity 0.3s ease';
-            setTimeout(() => toast.remove(), 300);
-        }, 3000);
+    if (btnOpenUserModal && modalUser) {
+        btnOpenUserModal.addEventListener('click', function () {
+            showModal(modalUser);
+        });
+    }
+    const formUserModal = document.getElementById('form-user-modal');
+
+if (formUserModal) {
+    formUserModal.addEventListener('submit', async function (event) {
+        event.preventDefault();
+
+        const password = document.getElementById('u_password')?.value || '';
+        const confirmPassword = document.getElementById('u_confirm_password')?.value || '';
+
+        if (password !== confirmPassword) {
+            alert('Password and Confirm Password must match.');
+            return;
+        }
+
+        const formData = new FormData(formUserModal);
+
+        try {
+            const response = await fetch('/settings/save-user/', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || data.status !== 'success') {
+                alert(data.message || 'Unable to create Super Admin.');
+                return;
+            }
+
+            alert(data.message || 'Super User added successfully!');
+
+            formUserModal.reset();
+
+            if (typeof hideModal === 'function' && modalUser) {
+                hideModal(modalUser);
+            } else if (modalUser) {
+                modalUser.hidden = true;
+            }
+
+        } catch (error) {
+            console.error('Super Admin creation error:', error);
+            alert('Something went wrong while creating Super Admin.');
+        }
+    });
+}
+// ==========================================
+// 7. AUDIT LOG INTERACTION
+// ==========================================
+
+
+    // ==========================================
+    // 8. BACKUP & RESTORE
+    // ==========================================
+    const backupNowBtn = document.getElementById('btn-backup-now');
+    const restoreBtn = document.getElementById('btn-trigger-restore');
+    const restoreModal = document.getElementById('modal-confirm-restore');
+    const confirmRestoreBtn = document.getElementById('btn-confirm-restore');
+    const backupFileInput = document.getElementById('backup-file-input');
+
+    // Backup Database
+    if (backupNowBtn) {
+        backupNowBtn.addEventListener('click', function () {
+            backupNowBtn.disabled = true;
+            fetch('/settings/create-backup/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCsrfToken() }
+            })
+            .then(async response => {
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => ({}));
+                    throw new Error(errData.error || 'Backup failed.');
+                }
+                const disposition = response.headers.get('Content-Disposition') || '';
+                const match = disposition.match(/filename="?([^"]+)"?/);
+                const filename = match ? match[1] : 'backup.json';
+                return response.blob().then(blob => ({ blob, filename }));
+            })
+            .then(({ blob, filename }) => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast('Backup created and downloaded successfully.', 'success');
+                setTimeout(() => location.reload(), 800);
+            })
+            .catch(error => {
+                showToast(error.message || 'An unexpected error occurred during backup.', 'danger');
+            })
+            .finally(() => {
+                backupNowBtn.disabled = false;
+            });
+        });
+    }
+
+    // Restore Database
+    if (restoreBtn && backupFileInput) {
+        restoreBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            backupFileInput.value = '';
+            backupFileInput.click();
+        });
+
+        backupFileInput.addEventListener('change', function () {
+            if (this.files && this.files.length > 0) {
+                showModal(restoreModal);
+            }
+        });
+    }
+
+    if (restoreModal) {
+        restoreModal.querySelectorAll('[data-dismiss="modal"]').forEach(btn => {
+            btn.addEventListener('click', function () {
+                if (backupFileInput) backupFileInput.value = '';
+            });
+        });
+    }
+
+    if (confirmRestoreBtn) {
+        confirmRestoreBtn.addEventListener('click', function () {
+            hideModal(restoreModal);
+
+            if (!backupFileInput || !backupFileInput.files.length) {
+                showToast('Please select a backup file to restore.', 'danger');
+                if (backupFileInput) backupFileInput.value = '';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('backup_file', backupFileInput.files[0]);
+
+            fetch('/settings/restore-backup/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCsrfToken() },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (backupFileInput) backupFileInput.value = '';
+                if (data.success) {
+                    showToast(data.message || 'Backup restored successfully.', 'success');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showToast(data.error || 'Restore failed.', 'danger');
+                }
+            })
+            .catch(error => {
+                if (backupFileInput) backupFileInput.value = '';
+                console.error('Restore error:', error);
+                showToast('An unexpected error occurred during restore.', 'danger');
+            });
+        });
     }
 });

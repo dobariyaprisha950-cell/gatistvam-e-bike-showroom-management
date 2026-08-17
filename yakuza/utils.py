@@ -105,51 +105,47 @@ def create_notification(title, message, notification_type, branch=None):
     )
 
 
+def create_daily_sales_reminder(branch):
+    """Authoritative, branch-safe daily reminder creation path."""
+    from decimal import Decimal
+    from .models import Sales
+
+    with transaction.atomic():
+        locked_branch = Branch.objects.select_for_update().filter(id=branch.id, is_active=True).first()
+        if not locked_branch:
+            return None, False
+
+        today = timezone.localdate()
+        existing = Notification.objects.filter(
+            branch=locked_branch,
+            notification_type=Notification.NotificationType.REMINDER,
+            created_at__date=today,
+        ).first()
+        if existing:
+            return existing, False
+
+        sales_qs = Sales.objects.filter(stock__branch=locked_branch, invoice_date=today)
+        total_sales = sales_qs.aggregate(total=Sum('grand_total'))['total'] or Decimal('0.00')
+        total_cost = sales_qs.aggregate(total=Sum('stock__purchase_price'))['total'] or Decimal('0.00')
+        profit = total_sales - total_cost
+        profit_pct = (profit / total_sales * Decimal('100.00')) if total_sales else Decimal('0.00')
+        reminder = Notification.objects.create(
+            branch=locked_branch,
+            title='⏰ Daily Reminder',
+            message=(
+                f"Today's Sales: ₹{total_sales:,.2f}\n\n"
+                f"Today's Profit: ₹{profit:,.2f}\n\n"
+                f"Profit Percentage: {profit_pct:.2f}%"
+            ),
+            notification_type=Notification.NotificationType.REMINDER,
+            is_read=False,
+        )
+        return reminder, True
+
+
 def generate_daily_summary_reminder():
-    """Generates daily 7:45 PM summary notification per branch or globally."""
-    today = timezone.now().date()
-    
-    from yakuza.models import Purchase, Sales, Expense
-
-    branches = Branch.objects.all()
-    for branch in branches:
-        todays_purchases = Purchase.objects.filter(branch=branch, purchase_date=today).aggregate(
-            total=Sum('items__total_amount')
-        )['total'] or 0.0
-        
-        todays_sales = Sales.objects.filter(stock__branch=branch, invoice_date=today).aggregate(
-            total=Sum('grand_total')
-        )['total'] or 0.0
-        
-        todays_expenses = Expense.objects.filter(branch=branch, expense_date=today).aggregate(
-            total=Sum('amount')
-        )['total'] or 0.0
-
-        message = (
-            f"Daily Summary ({today.strftime('%d %b %Y')}):\n"
-            f"• Today's Purchase: ₹{todays_purchases:,.2f}\n"
-            f"• Today's Sales: ₹{todays_sales:,.2f}\n"
-            f"• Today's Expenses: ₹{todays_expenses:,.2f}"
-        )
-
-        create_notification(
-            title=f"Daily Financial Summary - {branch.branch_name}",
-            message=message,
-            notification_type=Notification.TYPE_REMINDER,
-            branch=branch
-        )
+    """Backward-compatible caller for the authoritative reminder flow."""
+    for branch in Branch.objects.filter(is_active=True):
+        create_daily_sales_reminder(branch)
 
 
-def notify_backup_status(is_success, details=""):
-    """Call this function when database backup completes."""
-    status_str = "Completed Successfully" if is_success else "Failed"
-    title = f"Database Backup {status_str}"
-    message = f"System backup was triggered and {status_str.lower()}. {details}"
-    create_notification(title=title, message=message, notification_type=Notification.TYPE_SYSTEM)
-
-
-def notify_monthly_report_ready(report_month_name):
-    """Call this function when monthly report becomes available."""
-    title = f"Monthly Report Available ({report_month_name})"
-    message = f"The financial and stock report for {report_month_name} is ready for download."
-    create_notification(title=title, message=message, notification_type=Notification.TYPE_REPORT)

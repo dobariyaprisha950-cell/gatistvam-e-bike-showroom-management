@@ -242,6 +242,7 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
+    overflow: hidden;
 }
 
 .chart-header h3 {
@@ -256,9 +257,13 @@
     height: 240px;
     display: flex;
     align-items: center;
+    overflow: hidden;
     justify-content: center;
 }
-
+.chart-container canvas {
+    width: 100% !important;
+    max-width: 100% !important;
+}
 /* SECTION 4 & 6: Tables */
 .table-card {
     background: var(--white);
@@ -377,68 +382,7 @@
     background: var(--light-blue-bg);
 }
 
-/* SECTION 5: Branch Performance */
-.section-title-wrapper h3 {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-dark);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 12px;
-}
 
-.branch-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 14px;
-}
-
-.branch-card {
-    background: var(--white);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    padding: 14px;
-    box-shadow: var(--shadow-soft);
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    transition: var(--transition-fast);
-}
-.branch-card:hover {
-    border-color: var(--primary-blue);
-    transform: translateY(-2px);
-}
-
-.branch-card h4 {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--primary-blue);
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: 6px;
-}
-
-.branch-stats {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
-.b-stat-row {
-    display: flex;
-    justify-content: space-between;
-    font-size: 11px;
-    color: var(--text-muted);
-}
-.b-stat-row strong {
-    color: var(--text-dark);
-}
-.b-stat-row.highlight strong {
-    color: #00875a;
-}
-.b-stat-row.highlight.loss strong {
-    color: #de350b;
-}
 
 /* RESPONSIVE DESIGN */
 @media (max-width: 1200px) {

@@ -5,66 +5,87 @@
     width: 100%;
 }
 
-/* Header Alignment સેટ કર્યું - Height વધારે નહીં થાય */
 .live-stock-toolbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center; /* flex-end માંથી બદલીને center કર્યું */
     background: #ffffff;
-    padding: 10px 18px;
+    padding: 12px 18px;
     border-radius: 12px;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
     border: 1px solid #e2e8f0;
     margin-bottom: 24px;
-    gap: 16px;
-    flex-wrap: wrap;
 }
 
-.live-stock-filters {
+/* 1. Filter Bar - Single Horizontal Row */
+.live-stock-filters-row {
     display: flex;
     align-items: center;
-    gap: 16px;
-    flex-wrap: wrap;
-    flex-grow: 1;
+    gap: 12px;
+    width: 100%;
 }
 
-.live-stock-filter-item {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    min-width: 180px;
-    flex-grow: 1;
-}
-
-.live-stock-filter-item.search-item {
-    flex-grow: 2;
-    min-width: 250px;
-}
-
-.live-stock-label {
-    font-size: 12px;
-    font-weight: 600;
-    color: #64748b;
-}
-
-.live-stock-select-wrap {
+/* Search Bar */
+.live-stock-search-wrap {
     position: relative;
-    width: 100%;
+    flex: 1;
+    min-width: 220px;
 }
 
-.live-stock-select {
+.live-stock-search-wrap .search-icon {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 14px;
+    color: #94a3b8;
+    pointer-events: none;
+}
+
+.live-stock-search-input {
     width: 100%;
-    height: 40px; /* 44px માંથી 40px કર્યું */
-    padding: 0 36px 0 16px;
+    height: 40px;
+    padding: 0 16px 0 38px;
     background-color: #ffffff;
     border: 1px solid #e2e8f0;
-    border-radius: 10px;
+    border-radius: 8px;
     font-size: 13px;
     font-weight: 500;
     color: #0f172a;
     outline: none;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+}
+
+.live-stock-search-input:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* Color Dropdown */
+.live-stock-select-wrap {
+    position: relative;
+    width: 200px;
+    flex-shrink: 0;
+}
+
+.live-stock-select {
+    width: 100%;
+    height: 40px;
+    padding: 0 36px 0 16px;
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #0f172a; /* Explicit readable black text */
+    outline: none;
     appearance: none;
     cursor: pointer;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+}
+
+.live-stock-select option {
+    color: #0f172a;
+    background-color: #ffffff;
 }
 
 .live-stock-select:focus {
@@ -82,81 +103,66 @@
     pointer-events: none;
 }
 
-.live-stock-search-wrap {
-    position: relative;
-    width: 100%;
-}
-
-.live-stock-search-wrap i {
-    position: absolute;
-    left: 16px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #64748b;
-    font-size: 14px;
-}
-
-.live-stock-search-input {
-    width: 100%;
-    height: 40px; /* 44px માંથી 40px કર્યું */
-    padding: 0 16px 0 44px;
-    background-color: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    font-size: 13px;
-    color: #0f172a;
-    outline: none;
-}
-
-.live-stock-search-input:focus {
-    border-color: #2563eb;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-}
-
-.live-stock-add-btn {
-    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+/* Reset Button (Blue) */
+.live-stock-reset-btn {
+    height: 40px;
+    padding: 0 20px;
+    background-color: #2563eb;
     color: #ffffff;
     border: none;
-    height: 40px; /* 44px માંથી 40px કર્યું */
-    padding: 0 20px;
-    border-radius: 10px;
+    border-radius: 8px;
     font-size: 13px;
     font-weight: 600;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 8px;
     cursor: pointer;
-    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+    transition: background-color 0.2s ease, transform 0.1s ease;
     white-space: nowrap;
-    margin-top: 18px; /* ડ્રોપડાઉનના Label સાથે લાઈનમાં લાવવા માટે */
+    flex-shrink: 0;
 }
 
-.live-stock-add-btn:hover {
-    background: linear-gradient(135deg, #1d4ed8 100%, #1e40af 100%);
+.live-stock-reset-btn:hover {
+    background-color: #1d4ed8;
 }
 
+.live-stock-reset-btn:active {
+    transform: scale(0.98);
+}
+
+/* Table Container */
 .live-stock-container {
     background-color: #ffffff;
     border: 1px solid #e2e8f0;
-    border-radius: 16px;
+    border-radius: 12px;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
     overflow: hidden;
 }
 
+/* 2. TABLE — EXACTLY 5 EQUAL COLUMNS (repeat 5, 1fr = 20% width each) */
 .live-stock-header-row {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    padding: 16px 24px;
-    gap: 16px;
+    grid-template-columns: repeat(5, 1fr);
+    padding: 12px 18px;
+    gap: 12px;
     border-bottom: 1px solid #e2e8f0;
-    background-color: #ffffff;
+    background-color: #f8fafc;
+    box-sizing: border-box;
 }
 
 .lh-col {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
-    color: #0f172a;
+    color: #475569;
     text-align: left;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    display: flex;
+    align-items: center;
+}
+
+.lh-col-photo {
+    justify-content: center;
 }
 
 .live-stock-list {
@@ -166,12 +172,13 @@
 
 .vehicle-row {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     align-items: center;
-    padding: 16px 24px;
-    gap: 16px;
-    border-bottom: 1px solid #e2e8f0;
+    padding: 12px 18px;
+    gap: 12px;
+    border-bottom: 1px solid #f1f5f9;
     transition: background-color 0.2s;
+    box-sizing: border-box;
 }
 
 .vehicle-row:last-child {
@@ -186,23 +193,25 @@
     display: flex;
     align-items: center;
     justify-content: flex-start;
+    width: 100%;
 }
 
-.vehicle-image-name-col {
-    gap: 16px;
+.vehicle-image-col {
+    justify-content: center;
 }
 
 .vehicle-image {
-    width: 45px;
-    height: 45px;
+    width: 40px;
+    height: 40px;
     object-fit: contain;
     background-color: #f1f5f9;
-    border-radius: 8px;
+    border-radius: 6px;
     overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
     border: 1px solid #e2e8f0;
+    margin: 0 auto;
     flex-shrink: 0;
 }
 
@@ -212,10 +221,18 @@
     object-fit: cover;
 }
 
-.vehicle-name-text, .vehicle-model-text, .vehicle-price-text, .color-text {
+.vehicle-model-text, 
+.vehicle-price-text, 
+.color-text, 
+.vehicle-quantity-text {
     font-size: 13px;
     font-weight: 500;
     color: #0f172a;
+}
+
+.vehicle-quantity-text {
+    font-weight: 700;
+    color: #2563eb;
 }
 
 .vehicle-price-text {
@@ -225,116 +242,54 @@
 .vehicle-color-wrap {
     display: flex;
     align-items: center;
-    gap: 8px;
-}
-
-.color-dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    display: inline-block;
-}
-
-.vehicle-status-badge {
-    padding: 6px 12px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: 600;
-    display: inline-flex;
-    align-items: center;
     gap: 6px;
 }
 
-.vehicle-status-badge.available {
-    background-color: #dcfce7;
-    color: #15803d;
+.no-stock-empty {
+    padding: 24px;
+    text-align: center;
+    color: #6b7280;
+    font-weight: 500;
 }
 
-.vehicle-status-badge.reserved {
-    background-color: #fef9c3;
-    color: #a16207;
-}
-
-.vehicle-status-badge.out-of-stock,
-.vehicle-status-badge.sold {
-    background-color: #fee2e2;
-    color: #b91c1c;
-}
-
-.status-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    display: inline-block;
-}
-
-.available .status-dot { background-color: #15803d; }
-.reserved .status-dot { background-color: #a16207; }
-.out-of-stock .status-dot, .sold .status-dot { background-color: #b91c1c; }
-
-.vehicle-actions-col {
-    display: flex;
-    gap: 8px;
-}
-
-.action-btn {
-    width: 34px;
-    height: 34px;
-    border-radius: 8px;
-    border: 1px solid #e2e8f0;
-    background-color: #ffffff;
-    color: #64748b;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.view-btn:hover {
-    background-color: #eff6ff;
-    color: #2563eb;
-    border-color: #bfdbfe;
-}
-
-.edit-btn:hover {
-    background-color: #fef9c3;
-    color: #a16207;
-    border-color: #fde047;
-}
-
-.delete-btn:hover {
-    background-color: #fee2e2;
-    color: #b91c1c;
-    border-color: #fecaca;
-}
-
-/* ડાબી બાજુનું Alignment સરખું કર્યું */
-.vehicle-row .vehicle-col:first-child,
-.live-stock-header-row .lh-col:first-child {
-    display: flex;
-    justify-content: flex-start;
-    text-align: left;
-}
-
-@media (max-width: 992px) {
-    .live-stock-header-row {
-        display: none;
+/* Responsive Overrides */
+@media (max-width: 768px) {
+    .live-stock-filters-row {
+        flex-wrap: wrap;
+        gap: 10px;
     }
+
+    .live-stock-search-wrap {
+        min-width: 100%;
+        flex: 1 1 100%;
+    }
+
+    .live-stock-select-wrap {
+        flex: 1;
+        width: auto;
+    }
+
+    .live-stock-reset-btn {
+        flex: 0 0 auto;
+    }
+
+    .live-stock-container {
+        overflow-x: auto;
+    }
+
+    .live-stock-header-row,
     .vehicle-row {
-        grid-template-columns: 1fr;
-        gap: 12px;
-        padding: 20px;
+        min-width: 620px;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 6px;
+        padding: 10px;
     }
-    .vehicle-col {
-        justify-content: space-between;
-    }
-    .vehicle-image-name-col {
-        justify-content: flex-start;
-    }
-    .live-stock-add-btn {
-        margin-top: 0;
-        width: 100%;
-        justify-content: center;
+
+    .vehicle-model-text,
+    .vehicle-price-text,
+    .color-text,
+    .vehicle-quantity-text,
+    .lh-col {
+        font-size: 11px;
     }
 }

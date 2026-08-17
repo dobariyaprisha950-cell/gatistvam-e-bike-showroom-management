@@ -12,7 +12,10 @@ function initNotificationsManager() {
     // State Variables
     let notifications = [];
     const container = document.getElementById('notificationsContainer');
-    const API_URL = container ? container.dataset.apiUrl : '/yakuza/api/notifications/';
+    let API_URL = container ? container.dataset.apiUrl : '/yakuza/api/notifications/';
+    if (!API_URL.endsWith('/')) {
+        API_URL += '/';
+    }
 
     // CSRF Token Helper
     function getCookie(name) {
@@ -46,30 +49,19 @@ function initNotificationsManager() {
     const countUnread = document.getElementById('count-unread');
     const countToday = document.getElementById('count-today');
     const countLowStock = document.getElementById('count-lowstock');
-    const countSystem = document.getElementById('count-system');
+    const countReminder = document.getElementById('count-reminder');
 
     if (!listContainer) return;
 
     // Map Notification Type to Icon & Color
     function getNotificationMetadata(type) {
-        switch (type) {
-            case 'Low Stock':
-                return { icon: 'fas fa-exclamation-triangle', colorCode: 'orange' };
-            case 'Sales Entry':
-                return { icon: 'fas fa-shopping-cart', colorCode: 'green' };
-            case 'Purchase Entry':
-                return { icon: 'fas fa-box-open', colorCode: 'green' };
-            case 'Expense Added':
-                return { icon: 'fas fa-file-invoice-dollar', colorCode: 'blue' };
-            case 'System Update':
-                return { icon: 'fas fa-cogs', colorCode: 'blue' };
-            case 'Daily Closing Reminder':
-                return { icon: 'fas fa-clock', colorCode: 'red' };
-            case 'Monthly Profit Reminder':
-                return { icon: 'fas fa-chart-line', colorCode: 'blue' };
-            default:
-                return { icon: 'fas fa-bell', colorCode: 'blue' };
+        const normalized = (type || '').toUpperCase();
+        if (normalized === 'LOW_STOCK' || normalized === 'LOW STOCK') {
+            return { icon: 'fas fa-exclamation-triangle', colorCode: 'orange' };
+        } else if (normalized === 'REMINDER' || normalized === 'DAILY REMINDER') {
+            return { icon: 'fas fa-clock', colorCode: 'purple' };
         }
+        return { icon: 'fas fa-bell', colorCode: 'blue' };
     }
 
     // Format Date-Time String
@@ -83,6 +75,16 @@ function initNotificationsManager() {
         const hours = String(d.getHours()).padStart(2, '0');
         const mins = String(d.getMinutes()).padStart(2, '0');
         return `${year}-${month}-${day} ${hours}:${mins}`;
+    }
+
+    // Helper to extract Branch Name safely
+    function getBranchName(item) {
+        if (item.branch_name) return item.branch_name;
+        if (item.branch && typeof item.branch === 'object' && item.branch.branch_name) {
+            return item.branch.branch_name;
+        }
+        if (item.branch && typeof item.branch === 'string') return item.branch;
+        return 'All Branches';
     }
 
     // API: Fetch All Notifications from Django Backend
@@ -102,7 +104,6 @@ function initNotificationsManager() {
             if (!response.ok) throw new Error('Failed to fetch notifications');
 
             const data = await response.json();
-            // DRF Paginated Response support
             notifications = Array.isArray(data) ? data : (data.results || []);
             renderNotifications();
         } catch (error) {
@@ -119,13 +120,17 @@ function initNotificationsManager() {
 
         const unreadCount = notifications.filter(n => !n.is_read).length;
         const todayCount = notifications.filter(n => n.created_at && n.created_at.startsWith(todayStr)).length;
-        const lowStockCount = notifications.filter(n => n.notification_type === 'Low Stock').length;
-        const systemCount = notifications.filter(n => n.notification_type === 'System Update').length;
+        const lowStockCount = notifications.filter(n => 
+            n.notification_type === 'LOW_STOCK' || n.notification_type === 'Low Stock'
+        ).length;
+        const reminderCount = notifications.filter(n => 
+            n.notification_type === 'REMINDER' || n.notification_type === 'Daily Reminder'
+        ).length;
 
         if (countUnread) countUnread.textContent = unreadCount;
         if (countToday) countToday.textContent = todayCount;
         if (countLowStock) countLowStock.textContent = lowStockCount;
-        if (countSystem) countSystem.textContent = systemCount;
+        if (countReminder) countReminder.textContent = reminderCount;
     }
 
     // Render Function
@@ -138,10 +143,12 @@ function initNotificationsManager() {
         const filtered = notifications.filter(item => {
             const title = (item.title || '').toLowerCase();
             const message = (item.message || '').toLowerCase();
-            const branch = (item.branch_name || '').toLowerCase();
+            const branch = getBranchName(item).toLowerCase();
 
             const matchesSearch = !query || title.includes(query) || message.includes(query) || branch.includes(query);
-            const matchesType = selectedType === 'ALL' || item.notification_type === selectedType;
+            
+            const itemType = (item.notification_type || '').toUpperCase();
+            const matchesType = selectedType === 'ALL' || itemType === selectedType.toUpperCase();
             
             const isRead = item.is_read;
             const matchesStatus = selectedStatus === 'ALL' || 
@@ -165,6 +172,7 @@ function initNotificationsManager() {
                 const statusStr = isUnread ? 'unread' : 'read';
                 const meta = getNotificationMetadata(item.notification_type);
                 const formattedTime = formatDateTime(item.created_at);
+                const displayBranch = getBranchName(item);
 
                 const card = document.createElement('div');
                 card.className = `notification-card status-${statusStr} theme-${meta.colorCode}`;
@@ -180,10 +188,10 @@ function initNotificationsManager() {
                             <h4 class="notification-title">${item.title}</h4>
                             <span class="type-badge">${item.notification_type}</span>
                         </div>
-                        <p class="notification-desc">${item.message}</p>
+                        <p class="notification-desc" style="white-space: pre-line;">${item.message}</p>
                         <div class="notification-meta">
                             <span class="meta-item">
-                                <i class="fas fa-store"></i> ${item.branch_name || 'All Branches'}
+                                <i class="fas fa-store"></i> ${displayBranch}
                             </span>
                             <span class="meta-item">
                                 <i class="fas fa-clock"></i> ${formattedTime}
@@ -211,9 +219,14 @@ function initNotificationsManager() {
                 `;
 
                 // Action Event Listeners
+                // Action Event Listeners
                 const btnRead = card.querySelector('.btn-action-read');
                 if (btnRead) {
-                    btnRead.addEventListener('click', () => markAsRead(item.id));
+                    btnRead.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        markAsRead(item.id);
+                    });
                 }
 
                 const btnDelete = card.querySelector('.btn-action-delete');
@@ -230,27 +243,29 @@ function initNotificationsManager() {
 
     // API Action: Mark as Read
     async function markAsRead(id) {
-        try {
-            const response = await fetch(`${API_URL}${id}/mark_as_read/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrftoken
-                }
-            });
-
-            if (response.ok) {
-                notifications = notifications.map(item =>
-                    item.id === id ? { ...item, is_read: true } : item
-                );
-                renderNotifications();
-            } else {
-                console.error('Failed to mark notification as read');
+    try {
+        const response = await fetch(`${API_URL}${id}/mark_as_read/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken
             }
-        } catch (error) {
-            console.error('Error:', error);
+        });
+
+        if (response.ok) {
+            // Local state અપડેટ કરો
+            notifications = notifications.map(item =>
+                item.id === id ? { ...item, is_read: true } : item
+            );
+            // UI ફરીથી રેન્ડર કરો
+            renderNotifications();
+        } else {
+            console.error('Failed to mark notification as read');
         }
+    } catch (error) {
+        console.error('Error:', error);
     }
+}
 
     // API Action: Delete Notification
     async function deleteNotification(id, cardElement) {
@@ -260,11 +275,12 @@ function initNotificationsManager() {
             const response = await fetch(`${API_URL}${id}/`, {
                 method: 'DELETE',
                 headers: {
-                    'X-CSRFToken': csrftoken
+                    'X-CSRFToken': csrftoken,
+                    'Content-Type': 'application/json'
                 }
             });
 
-            if (response.ok) {
+            if (response.ok || response.status === 204) {
                 setTimeout(() => {
                     notifications = notifications.filter(item => item.id !== id);
                     renderNotifications();
@@ -293,11 +309,13 @@ function initNotificationsManager() {
         if (!confirm('Are you sure you want to clear all notifications?')) return;
 
         try {
-            // Sequential API Deletions
             const deletePromises = notifications.map(n => 
                 fetch(`${API_URL}${n.id}/`, {
                     method: 'DELETE',
-                    headers: { 'X-CSRFToken': csrftoken }
+                    headers: { 
+                        'X-CSRFToken': csrftoken,
+                        'Content-Type': 'application/json'
+                    }
                 })
             );
             await Promise.all(deletePromises);
@@ -305,7 +323,7 @@ function initNotificationsManager() {
             renderNotifications();
         } catch (error) {
             console.error('Error clearing notifications:', error);
-            fetchNotifications(); // Refresh to original state if error occurs
+            fetchNotifications();
         }
     }
 

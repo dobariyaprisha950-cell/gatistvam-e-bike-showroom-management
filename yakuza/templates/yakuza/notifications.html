@@ -14,12 +14,11 @@ Notifications
 {% endblock %}
 
 {% block content %}
-<!-- CSRF Token for Secure AJAX API requests -->
 {% csrf_token %}
 
 <div class="notifications-container" 
      id="notificationsContainer" 
-     data-api-url="/yakuza/api/notifications/">
+     data-api-url="{% url 'yakuza:notification-list' %}">
 
     <!-- ================= SECTION 1: SUMMARY CARDS ================= -->
     <section class="summary-grid">
@@ -56,19 +55,19 @@ Notifications
             </div>
         </div>
 
-        <div class="summary-card" data-card="system">
-            <div class="summary-icon icon-red">
-                <i class="fas fa-shield-alt"></i>
+        <div class="summary-card" data-card="reminder">
+            <div class="summary-icon icon-purple">
+                <i class="fas fa-clock"></i>
             </div>
             <div class="summary-content">
-                <h3 class="summary-count" id="count-system">0</h3>
-                <span class="summary-title">System Alerts</span>
-                <p class="summary-desc">Critical server & app updates</p>
+                <h3 class="summary-count" id="count-reminder">0</h3>
+                <span class="summary-title">Daily Reminders</span>
+                <p class="summary-desc">7:45 PM daily summary</p>
             </div>
         </div>
     </section>
 
-    <!-- ================= SECTION 2: FILTERS (Single Line with Reset) ================= -->
+    <!-- ================= SECTION 2: FILTERS ================= -->
     <section class="filter-card">
         <div class="filter-grid" style="grid-template-columns: 2fr 1.2fr 1fr 1fr auto; gap: 0.75rem; align-items: center;">
             <div class="filter-group search-group">
@@ -79,13 +78,8 @@ Notifications
             <div class="filter-group">
                 <select id="typeFilter" class="filter-select">
                     <option value="ALL">All Notification Types</option>
-                    <option value="Low Stock">Low Stock</option>
-                    <option value="Purchase Entry">Purchase Entry</option>
-                    <option value="Sales Entry">Sales Entry</option>
-                    <option value="Expense Added">Expense Added</option>
-                    <option value="System Update">System Update</option>
-                    <option value="Monthly Profit Reminder">Monthly Profit Reminder</option>
-                    <option value="Daily Closing Reminder">Daily Closing Reminder</option>
+                    <option value="LOW_STOCK">Low Stock</option>
+                    <option value="REMINDER">Daily Reminder</option>
                 </select>
             </div>
 
@@ -111,19 +105,18 @@ Notifications
 
     <!-- ================= SECTION 3: NOTIFICATION LIST ================= -->
     <section class="notification-list-section">
-        <!-- Loader during API Fetching -->
         <div id="loadingSpinner" class="loading-state hidden">
             <i class="fas fa-spinner fa-spin"></i> Loading notifications...
         </div>
 
         <div id="notificationList" class="notification-list">
-            <!-- Dynamic cards populated by notifications.js from Django API -->
+            <!-- Dynamic cards populated by notifications.js -->
         </div>
 
         <div id="emptyState" class="empty-state hidden">
             <i class="fas fa-inbox empty-icon"></i>
             <h4>No Notifications Found</h4>
-            <p>You're all caught up! Adjust your filters or search terms to see older items.</p>
+            <p>You're all caught up!</p>
         </div>
     </section>
 
