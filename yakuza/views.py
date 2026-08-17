@@ -2660,3 +2660,38 @@ def restore_backup(request):
         return JsonResponse({'success': False, 'error': f'Restore failed and rolled back: {str(e)}'}, status=500)
 
     return JsonResponse({'success': True, 'message': f'Backup restored successfully for {branch.branch_name}.'})
+
+def service_worker(request):
+    js = """
+const CACHE_NAME = 'gatistvam-pwa-v1';
+
+self.addEventListener('install', event => {
+    self.skipWaiting();
+});
+
+self.addEventListener('activate', event => {
+    event.waitUntil(
+        caches.keys().then(cacheNames => {
+            return Promise.all(
+                cacheNames
+                    .filter(name => name !== CACHE_NAME)
+                    .map(name => caches.delete(name))
+            );
+        }).then(() => self.clients.claim())
+    );
+});
+
+self.addEventListener('fetch', event => {
+    if (event.request.method !== 'GET') {
+        return;
+    }
+
+    event.respondWith(
+        fetch(event.request).catch(() => caches.match(event.request))
+    );
+});
+"""
+
+    response = HttpResponse(js, content_type='application/javascript')
+    response['Service-Worker-Allowed'] = '/'
+    return response

@@ -24,6 +24,7 @@ router.register(r'audit-logs', views.AuditLogViewSet)
 
 urlpatterns = [
     # Branch Switcher
+    path('service-worker.js', views.service_worker, name='service_worker'),
     path('switch-branch/', views.switch_branch, name='switch_branch'),
     
     # Frontend Pages
