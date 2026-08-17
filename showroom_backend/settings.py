@@ -4,14 +4,6 @@ from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Mindee Invoice OCR (structured extraction). Set in environment for production.
-MINDEE_API_KEY = os.environ.get('MINDEE_API_KEY', '')
-MINDEE_FIELD_CONFIDENCE_MIN = float(os.environ.get('MINDEE_FIELD_CONFIDENCE_MIN', '0.70'))
-MINDEE_LINE_ITEM_CONFIDENCE_MIN = float(os.environ.get('MINDEE_LINE_ITEM_CONFIDENCE_MIN', '0.55'))
-
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-5+d4k8!y_cp(v&hu@yvu2#jzh38$+77+^9yd6ua8b+9ysk0!x+'
