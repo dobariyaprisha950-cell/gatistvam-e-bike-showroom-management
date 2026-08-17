@@ -10,7 +10,7 @@ SECRET_KEY = 'django-insecure-5+d4k8!y_cp(v&hu@yvu2#jzh38$+77+^9yd6ua8b+9ysk0!x+
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
-ALLOWED_HOSTS = ['yakuza-showroom-management.onrender.com', 'localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['yakuza-showroom-management.onrender.com']
 
 # Application definition
 
