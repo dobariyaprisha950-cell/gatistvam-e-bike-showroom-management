@@ -24,6 +24,124 @@
     <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&display=swap" rel="stylesheet">
     {% block extra_css %}<link rel="stylesheet" href="{% static 'css/dashboard.css' %}">{% endblock %}
+    <style>
+    .branch-modal-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        background: rgba(15, 23, 42, 0.55);
+        backdrop-filter: blur(4px);
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+
+    .branch-modal-overlay.show {
+        display: flex;
+    }
+
+    .branch-modal {
+        position: relative;
+        width: min(420px, 92vw);
+        background: #ffffff;
+        border-radius: 18px;
+        padding: 32px 28px 28px;
+        text-align: center;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+        animation: branchModalIn 0.22s ease-out;
+    }
+
+    @keyframes branchModalIn {
+        from {
+            opacity: 0;
+            transform: translateY(15px) scale(0.96);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+    }
+
+    .branch-modal-close {
+        position: absolute;
+        top: 10px;
+        right: 14px;
+        width: 32px;
+        height: 32px;
+        border: 0;
+        background: transparent;
+        color: #64748b;
+        font-size: 25px;
+        line-height: 1;
+        cursor: pointer;
+    }
+
+    .branch-modal-close:hover {
+        color: #0f172a;
+    }
+
+    .branch-modal-icon {
+        width: 58px;
+        height: 58px;
+        margin: 0 auto 16px;
+        border-radius: 50%;
+        background: #fff7ed;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .branch-modal-icon span {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: #f59e0b;
+        color: #ffffff;
+        font-size: 21px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .branch-modal h3 {
+        margin: 0 0 9px;
+        color: #0f172a;
+        font-size: 21px;
+        font-weight: 700;
+    }
+
+    .branch-modal p {
+        margin: 0 auto 23px;
+        max-width: 330px;
+        color: #64748b;
+        font-size: 14px;
+        line-height: 1.6;
+    }
+
+    .branch-modal-btn {
+        width: 100%;
+        border: 0;
+        border-radius: 9px;
+        padding: 11px 18px;
+        background: #2563eb;
+        color: #ffffff;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: 0.2s ease;
+    }
+
+    .branch-modal-btn:hover {
+        background: #1d4ed8;
+    }
+
+    body.branch-modal-open {
+        overflow: hidden;
+    }
+</style>
 </head>
 
 <body>
@@ -99,18 +217,22 @@
     {% if request.user.is_authenticated and request.user.is_superuser or request.user.userprofile.role == 'SUPER_ADMIN' %}
     <form action="{% url 'yakuza:switch_branch' %}" method="POST" id="branchSwitchForm" style="margin: 0;">
         {% csrf_token %}
+
         <select
             name="branch_id"
             id="superAdminBranchSelect"
             onchange="document.getElementById('branchSwitchForm').submit();"
             style="padding: 6px 12px; border-radius: 6px; border: 1px solid #cbd5e1; background-color: #f8fafc; font-weight: 500; cursor: pointer;"
         >
-            <option value="all" {% if request.session.selected_branch_id == 'all' or not request.session.selected_branch_id %}selected{% endif %}>
-                All Branches
+            <option value="" {% if not request.session.selected_branch_id %}selected{% endif %}>
+                Select Branch
             </option>
 
             {% for b in all_active_branches %}
-                <option value="{{ b.id }}" {% if request.session.selected_branch_id == b.id|stringformat:"s" %}selected{% endif %}>
+                <option
+                    value="{{ b.id }}"
+                    {% if request.session.selected_branch_id == b.id|stringformat:"s" %}selected{% endif %}
+                >
                     {{ b.branch_name }}
                 </option>
             {% endfor %}
@@ -175,6 +297,30 @@
 </header>
 
 <div class="dashboard-body">
+    <!-- Branch Required Popup -->
+<div id="branchRequiredModal" class="branch-modal-overlay">
+    <div class="branch-modal">
+
+        <button type="button" class="branch-modal-close" id="closeBranchModal">
+            &times;
+        </button>
+
+        <div class="branch-modal-icon">
+            <span>!</span>
+        </div>
+
+        <h3>Select Branch</h3>
+
+        <p>
+            Please select a branch from the dashboard before accessing this page.
+        </p>
+
+        <button type="button" class="branch-modal-btn" id="branchModalOk">
+            Select Branch
+        </button>
+
+    </div>
+</div>
 
 {% block content %}
 
@@ -280,6 +426,83 @@ if ('serviceWorker' in navigator) {
         });
     });
 }
+</script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    const branchSelect = document.getElementById("superAdminBranchSelect");
+    const modal = document.getElementById("branchRequiredModal");
+    const closeBtn = document.getElementById("closeBranchModal");
+    const okBtn = document.getElementById("branchModalOk");
+
+    if (!branchSelect || !modal) return;
+
+    const protectedPaths = [
+        "/sales/",
+        "/purchase/",
+        "/live_stock/",
+        "/purchase_history/",
+        "/customer/",
+        "/expenses/",
+        "/reports/"
+    ];
+
+    function branchSelected() {
+        return branchSelect.value &&
+               branchSelect.value.trim() !== "";
+    }
+
+    function openBranchModal() {
+        modal.classList.add("show");
+        document.body.classList.add("branch-modal-open");
+    }
+
+    function closeBranchModal() {
+        modal.classList.remove("show");
+        document.body.classList.remove("branch-modal-open");
+    }
+
+    document.querySelectorAll("a[href]").forEach(function (link) {
+
+        const href = link.getAttribute("href");
+
+        if (!href) return;
+
+        const requiresBranch = protectedPaths.some(function (path) {
+            return href === path || href.startsWith(path + "?");
+        });
+
+        if (!requiresBranch) return;
+
+        link.addEventListener("click", function (event) {
+
+            if (!branchSelected()) {
+                event.preventDefault();
+                openBranchModal();
+            }
+
+        });
+    });
+
+    closeBtn.addEventListener("click", closeBranchModal);
+
+    okBtn.addEventListener("click", function () {
+        closeBranchModal();
+        branchSelect.focus();
+
+        branchSelect.scrollIntoView({
+            behavior: "smooth",
+            block: "center"
+        });
+    });
+
+    modal.addEventListener("click", function (event) {
+        if (event.target === modal) {
+            closeBranchModal();
+        }
+    });
+
+});
 </script>
 
 {% block extra_js %}

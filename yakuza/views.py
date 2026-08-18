@@ -82,44 +82,79 @@ def format_display_number(num):
         return "0"
     return format_indian_currency(num)
 
-
 def get_user_branch_context(request):
     """
-    Returns the specific Branch object the user should be restricted to.
-    Returns None if the user is a Super Admin viewing 'All Branches'.
+    Returns the currently selected branch.
+
+    Super Admin:
+        - Branch selected -> that Branch object
+        - No branch selected -> None
+
+    Normal user:
+        - Always returns their assigned branch.
     """
     if not request.user.is_authenticated:
         return None
-        
+
     profile = getattr(request.user, 'userprofile', None)
-    is_super = (profile and profile.role == UserProfile.RoleChoices.SUPER_ADMIN) or request.user.is_superuser
-    
+
+    is_super = (
+        (profile and profile.role == UserProfile.RoleChoices.SUPER_ADMIN)
+        or request.user.is_superuser
+    )
+
     if is_super:
-        selected_id = request.session.get('selected_branch_id', 'all')
-        if selected_id == 'all' or not selected_id:
+        selected_id = request.session.get('selected_branch_id')
+
+        if not selected_id:
             return None
+
         try:
-            return Branch.objects.get(id=int(selected_id), is_active=True)
-        except (ValueError, Branch.DoesNotExist):
+            return Branch.objects.get(
+                id=int(selected_id),
+                is_active=True
+            )
+        except (ValueError, TypeError, Branch.DoesNotExist):
             return None
-            
+
     return profile.branch if profile else None
 
 
 @login_required
 @require_POST
 def switch_branch(request):
-    """View to switch current active branch for Super Admin users"""
+    """Switch the active branch for Super Admin users."""
+
     profile = getattr(request.user, 'userprofile', None)
-    is_super = (profile and profile.role == UserProfile.RoleChoices.SUPER_ADMIN) or request.user.is_superuser
-    
+
+    is_super = (
+        (profile and profile.role == UserProfile.RoleChoices.SUPER_ADMIN)
+        or request.user.is_superuser
+    )
+
     if is_super:
-        branch_id = request.POST.get('branch_id', 'all')
-        request.session['selected_branch_id'] = branch_id
-    
-    return redirect(request.META.get('HTTP_REFERER', 'yakuza:dashboard'))
+        branch_id = request.POST.get('branch_id', '').strip()
 
+        if branch_id:
+            try:
+                branch = Branch.objects.get(
+                    id=int(branch_id),
+                    is_active=True
+                )
 
+                request.session['selected_branch_id'] = str(branch.id)
+                request.session.modified = True
+
+            except (ValueError, TypeError, Branch.DoesNotExist):
+                request.session.pop('selected_branch_id', None)
+                request.session.modified = True
+        else:
+            request.session.pop('selected_branch_id', None)
+            request.session.modified = True
+
+    return redirect(
+        request.META.get('HTTP_REFERER', 'yakuza:dashboard')
+    )
 # ==========================================
 # AUDIT LOG HELPER FUNCTION
 # ==========================================
