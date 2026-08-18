@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 from . import views
 from django.conf import settings
 from django.conf.urls.static import static
+from django.shortcuts import redirect
 
 app_name = 'yakuza'
 
@@ -23,6 +24,7 @@ router.register(r'settings', views.SettingsViewSet)
 router.register(r'audit-logs', views.AuditLogViewSet)
 
 urlpatterns = [
+    path('', lambda request: redirect('yakuza:login'), name='home'),
     # Branch Switcher
     path('service-worker.js', views.service_worker, name='service_worker'),
     path('switch-branch/', views.switch_branch, name='switch_branch'),
