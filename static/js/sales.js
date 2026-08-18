@@ -383,13 +383,33 @@ document.addEventListener("DOMContentLoaded", () => {
                 return;
             }
 
+            const printClone = printableArea.cloneNode(true);
+
+            // Terms & Conditions section ne print-specific classes aapo
+            const termsSection = printClone.querySelector(".terms-sig-flex");
+
+            if (termsSection) {
+                termsSection.classList.add("terms-sig-flex");
+
+                const termsBox = termsSection.firstElementChild;
+                const signatureBox = termsSection.lastElementChild;
+
+                if (termsBox) {
+                    termsBox.classList.add("terms-box");
+                }
+
+                if (signatureBox) {
+                    signatureBox.classList.add("signature-box");
+                }
+            }
+
             const printWindow = window.open("", "_blank", "width=900,height=1200");
             if (!printWindow) {
                 alert("Please allow popups for printing.");
                 return;
             }
 
-            const styleSheets = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+            const styleSheets = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
                 .map(s => s.outerHTML)
                 .join("\n");
 
@@ -404,21 +424,101 @@ document.addEventListener("DOMContentLoaded", () => {
                     <style>
                         @page { size: A4 portrait; margin: 0; }
                         html, body { margin: 0; padding: 0; width: 210mm; height: 297mm; background: #fff; overflow: hidden; }
-                        .print-wrapper { display: flex; justify-content: center; align-items: flex-start; width: 100%; height: 100%; box-sizing: border-box; padding: 10mm 8mm 6mm 8mm !important; }
-                        #printable-invoice-container { box-sizing: border-box; transform-origin: center top; transform: scale(1,1.35); margin: 0 auto; width: auto; max-width: none; display: inline-block; }
+                        .print-wrapper {
+    display: block !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    box-sizing: border-box !important;
+    padding: 10mm 5mm 5mm 5mm !important;
+    margin: 0 !important;
+}
+
+#printable-invoice-container {
+    box-sizing: border-box !important;
+    width: 190mm !important;
+    max-width: 190mm !important;
+    min-width: 200mm !important;
+    margin: 0 auto !important;
+    display: block !important;
+    transform-origin: top center !important;
+    transform: scale(1, 1.35);
+}
                         table { width: 100%; max-width: 100%; border-collapse: collapse; table-layout: fixed; box-sizing: border-box; }
                         th, td { border: 1.5px solid #000000 !important; border-collapse: collapse !important; padding: 8px 5px; font-size: 10px !important; line-height: 1.3; vertical-align: middle; word-wrap: break-word; overflow-wrap: break-word; text-align: center; }
                         th { font-weight: 600; background: #f2f2f2; }
-                        .bill-header, .bill-to-box, .bill-table, .inv-payment-summary-flex, .terms-sig-flex { margin: 8px 0 !important; page-break-inside: avoid; break-inside: avoid; }
+                        .bill-header, .bill-to-box, .inv-payment-summary-flex{ margin: 8px 0 !important; page-break-inside: avoid; break-inside: avoid; }
+                        .bill-table { margin: 8px 0 1px 0 !important; page-break-inside: avoid; break-inside: avoid; }
+                        .table-summary-bar {width: 100% !important; border-top: 0.5px solid #000 !important; box-sizing: border-box !important;}
+                        .vehicle-specs-box { margin: 0px !important; }
                         .bill-outer-border { border: 1px solid #000; padding: 8mm; box-sizing: border-box; }
                         .grand-total { font-weight: 700; font-size: 11px; border-top: 1px solid #000; padding-top: 3px; }
+                        .terms-sig-flex {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: flex-end !important;
+    width: 100% !important;
+    margin: 10px 0 0 0 !important;
+    padding: 0 !important;
+    text-align: left !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+}
+
+.terms-box {
+    width: 58% !important;
+    flex: 0 0 58% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    text-align: left !important;
+    font-size: 10px !important;
+}
+
+.terms-box strong {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 0 4px 0 !important;
+    padding: 0 !important;
+    text-align: left !important;
+}
+
+.terms-box ul {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    text-align: left !important;
+    list-style: none !important;
+}
+
+.terms-box li {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 0 3px 0 !important;
+    padding: 0 !important;
+    text-align: left !important;
+    white-space: normal !important;
+    clear: both !important;
+}
+
+.terms-box li::before {
+    content: "• " !important;
+}
+    
+.signature-box {
+    width: 38% !important;
+    flex: 0 0 38% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    text-align: center !important;
+}
                         .popup-actions-v2, .invoice-modal-close-icon, .sales-page-container, .toast-notification, .modal-close, button, input, select, textarea, ::-webkit-scrollbar { display: none !important; }
                         * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                        
                     </style>
                 </head>
                 <body>
                     <div class="print-wrapper">
-                        ${printableArea.outerHTML}
+                        ${printClone.outerHTML}
                     </div>
                 </body>
                 </html>

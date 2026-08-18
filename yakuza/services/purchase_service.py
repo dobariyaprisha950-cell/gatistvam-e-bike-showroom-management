@@ -1,7 +1,7 @@
 from django.db import transaction
 
 from yakuza.models import Purchase
-from yakuza.utils.generators import generate_purchase_number
+from yakuza.utils import generate_purchase_number
 
 
 class PurchaseService:

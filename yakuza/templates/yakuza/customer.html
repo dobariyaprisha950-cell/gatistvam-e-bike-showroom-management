@@ -131,17 +131,51 @@
                 <!-- Top Header with Logo -->
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid #333; padding-bottom: 12px; margin-bottom: 12px;">
                     <div>
-                        <h2 style="margin: 0 0 4px 0; font-size: 18px; font-weight: bold; color: #1e293b;" id="invHeaderCompany">Gatistvam Electric Vehicle</h2>
-                        <p style="margin: 2px 0; font-size: 11px; color: #333;" id="invHeaderAddress">Gatistvam E-Bike, G/15, Ashta Capital, Chobari Road, Junagadh - 362001</p>
-                        <p style="margin: 2px 0; font-size: 11px; color: #333;">Mo. <span id="invHeaderPhone">8488885733</span></p>
-                        <p style="margin: 2px 0; font-size: 11px; color: #333;">GST NO. <span id="invHeaderGst">24CURPK4247E1Z1</span></p>
+                        <h2 style="margin: 0 0 4px 0; font-size: 18px; font-weight: bold; color: #1e293b;" id="invHeaderCompany">
+                              {{ invoice_setting.company_name|default:"Gatistvam Electric Vehicle" }}
+                        </h2>
+
+                        <p style="margin: 2px 0; font-size: 11px; color: #333;" id="invHeaderAddress">
+                             {{ invoice_setting.company_address|default:"" }}
+                        </p>
+
+                        <p style="margin: 2px 0; font-size: 11px; color: #333;">
+                            Mo.
+                            <span id="invHeaderPhone">
+                                {{ invoice_setting.phone|default:"" }}
+                            </span>
+                        </p>
+
+                        <p style="margin: 2px 0; font-size: 11px; color: #333;">
+                            GST NO.
+                            <span id="invHeaderGst">
+                                {{ invoice_setting.gstin|default:"" }}
+                            </span>
+                        </p>
                     </div>
+
                     <div style="text-align: right; display: flex; flex-direction: column; align-items: flex-end;">
-                        <img src="{% static 'images/logo.png' %}" alt="Logo" style="max-height: 50px; margin-bottom: 5px;">
-                        <p style="margin: 2px 0; font-size: 11px;"><strong>Invoice No.:</strong> <span id="invNo">-</span></p>
-                        <p style="margin: 2px 0; font-size: 11px;"><strong>Date:</strong> <span id="invDate">-</span></p>
+
+                        {% if invoice_setting.logo %}
+                            <img src="{{ invoice_setting.logo.url }}"
+                                alt="Logo"
+                                style="max-height: 50px; margin-bottom: 5px;">
+                        {% else %}
+                            <img src="{% static 'images/logo.png' %}"
+                                alt="Logo"
+                                style="max-height: 50px; margin-bottom: 5px;">
+                        {% endif %}
+                        <p style="margin: 2px 0; font-size: 11px;">
+                            <strong>Invoice No.:</strong>
+                            <span id="invNo">-</span>
+                        </p>
+
+                        <p style="margin: 2px 0; font-size: 11px;">
+                            <strong>Date:</strong>
+                            <span id="invDate">-</span>
+                        </p>
                     </div>
-                </div>
+                    </div>
 
                 <!-- Customer Section -->
                 <div style="border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
@@ -227,9 +261,9 @@
                 <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 10px;">
                     <div style="width: 55%; font-size: 10px; color: #222;">
                         <strong>Terms & Conditions</strong>
-                        <ul>
+                        <ul>    
                                 {% if invoice_setting.terms %}
-                                    <li style="white-space: pre-line; list-style-type: disc; margin-left: 15px;">{{ invoice_setting.terms }}</li>
+                                    <div style="white-space: pre-line; margin-left: 0;">{{ invoice_setting.terms }}</div>
                                 {% else %}
                                     <li>Goods once sold will not be taken back or exchanged.</li>
                                     <li>Warranty as per manufacturer policy only.</li>

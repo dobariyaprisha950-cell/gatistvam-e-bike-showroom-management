@@ -223,11 +223,7 @@
                                 Mo. {{ invoice_setting.phone|default:branch.phone|default:sys_settings.company_phone }}
                             </p>
                             {% endif %}
-                            {% if invoice_setting.email or sys_settings.company_email or branch.email %}
-                            <p class="comp-email">
-                                Email: {{ invoice_setting.email|default:branch.email|default:sys_settings.company_email }}
-                            </p>
-                            {% endif %}
+                            
                             {% if invoice_setting.gstin or sys_settings.gstin or branch.gst_number %}
                             <p class="comp-gst">
                                 GST NO. {{ invoice_setting.gstin|default:branch.gst_number|default:sys_settings.gstin }}
@@ -325,35 +321,54 @@
                     </div>
 
                     <!-- Terms & Signature Section -->
-                    <div class="terms-sig-flex">
-                        <div class="terms-box">
-                            <strong>Terms & Conditions</strong>
-                            <ul>
-                                {% if invoice_setting.terms %}
-                                    <li style="white-space: pre-line; list-style-type: disc; margin-left: 15px;">{{ invoice_setting.terms }}</li>
-                                {% else %}
-                                    <li>Goods once sold will not be taken back or exchanged.</li>
-                                    <li>Warranty as per manufacturer policy only.</li>
-                                    <li>Battery warranty subject to usage and charging conditions.</li>
-                                    <li>Any physical damage is not covered under warranty.</li>
-                                {% endif %}
-                            </ul>
-                        </div>
-                        <div class="signature-box">
-                            <div class="sig-space-stamp">
-                                {% if invoice_setting.authorized_signature %}
-                                    <img src="{{ invoice_setting.authorized_signature.url }}" alt="Authorized Signature" style="max-height: 45px; margin-right: 10px;">
-                                {% endif %}
-                                {% if invoice_setting.company_seal %}
-                                    <img src="{{ invoice_setting.company_seal.url }}" alt="Company Seal" style="max-height: 50px;">
-                                {% endif %}
-                            </div>
-                            <div class="seal-text">Authorized Seal & Signature</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+<div class="terms-sig-flex">
 
+    <!-- Terms & Conditions -->
+    <div class="terms-box">
+        <strong>Terms & Conditions</strong>
+
+        {% if invoice_setting.terms %}
+            <div class="terms-content">
+                {{ invoice_setting.terms|linebreaksbr }}
+            </div>
+        {% else %}
+            <ul class="terms-list">
+                <li>Goods once sold will not be taken back or exchanged.</li>
+                <li>Warranty as per manufacturer policy only.</li>
+                <li>Battery warranty subject to usage and charging conditions.</li>
+                <li>Any physical damage is not covered under warranty.</li>
+            </ul>
+        {% endif %}
+    </div>
+
+    <!-- Signature -->
+    <div class="signature-box">
+        <div class="sig-space-stamp">
+
+            {% if invoice_setting.authorized_signature %}
+                <img
+                    src="{{ invoice_setting.authorized_signature.url }}"
+                    alt="Authorized Signature"
+                    style="max-height: 45px; margin-right: 10px;"
+                >
+            {% endif %}
+
+            {% if invoice_setting.company_seal %}
+                <img
+                    src="{{ invoice_setting.company_seal.url }}"
+                    alt="Company Seal"
+                    style="max-height: 50px;"
+                >
+            {% endif %}
+
+        </div>
+
+        <div class="seal-text">
+            Authorized Seal & Signature
+        </div>
+    </div>
+
+</div>
             <!-- MODAL ACTION BUTTONS -->
             <div class="popup-actions-v2">
                 <button type="button" class="btn-action btn-print-v2" id="btnPrintInvoice">

@@ -1161,17 +1161,7 @@ def sales(request):
             payment_type_map = {'Cash': Sales.PaymentMethod.CASH, 'UPI': Sales.PaymentMethod.UPI, 'EMI': Sales.PaymentMethod.EMI}
             payment_method = payment_type_map.get(payment_type, Sales.PaymentMethod.CASH)
 
-            # Resolve or allocate the Stock unit for this sale.
-            #
-            # A Stock row is created EMPTY (chassis_number / battery_number /
-            # motor_number / controller_number all NULL) at purchase time --
-            # those identifiers are only assigned the first time a specific
-            # unit is actually sold, which is right here. So a NEW sale must
-            # look up an AVAILABLE, not-yet-assigned unit by branch + model
-            # + color (never by chassis_number, since it doesn't exist on
-            # the row yet), then write the submitted identifiers onto it.
-            # Editing the same vehicle continues to work with the Stock
-            # unit already attached to that sale.
+            
             stock_obj = None
 
             if existing_sale and existing_sale.stock and \
@@ -1243,8 +1233,12 @@ def sales(request):
                 sale.save()
             else:
                 prefix = (invoice_setting.invoice_prefix if invoice_setting and invoice_setting.invoice_prefix else (sys_settings.invoice_prefix if sys_settings else "INV-")) or "INV-"
-                auto_inv = f"{prefix}{timezone.now().year}-{(Sales.objects.count() + 1):04d}"
+                year = timezone.now().year
 
+                if prefix.endswith(f"{year}-"):
+                    auto_inv = f"{prefix}{(Sales.objects.count() + 1):04d}"
+                else:
+                    auto_inv = f"{prefix}{year}-{(Sales.objects.count() + 1):04d}"
                 sale = Sales.objects.create(
                     stock=stock_obj,
                     customer_name=customer_name,
@@ -1316,7 +1310,14 @@ def sales(request):
             edit_sale = None
 
     prefix = (invoice_setting.invoice_prefix if invoice_setting and invoice_setting.invoice_prefix else (sys_settings.invoice_prefix if sys_settings else "INV-")) or "INV-"
-    auto_invoice_no = edit_sale.invoice_no if edit_sale else f"{prefix}{timezone.now().year}-{(Sales.objects.count() + 1):04d}"
+    year = timezone.now().year
+
+    if edit_sale:
+        auto_invoice_no = edit_sale.invoice_no
+    elif prefix.endswith(f"{year}-"):
+        auto_invoice_no = f"{prefix}{(Sales.objects.count() + 1):04d}"
+    else:
+        auto_invoice_no = f"{prefix}{year}-{(Sales.objects.count() + 1):04d}"
 
     branch_name = branch.branch_name if branch else "All Branches"
     billing_phone = (invoice_setting.phone if invoice_setting and invoice_setting.phone else (branch.phone if branch else "")) if branch else ""
@@ -1336,17 +1337,6 @@ def sales(request):
         if edit_sale.stock.color_id:
             available_color_ids.add(edit_sale.stock.color_id)
 
-    # NOTE: We deliberately do NOT re-filter these by VehicleModel.branch /
-    # VehicleColor.branch here. available_model_ids / available_color_ids
-    # above were already derived from Stock rows scoped to the current
-    # branch (Stock.branch is a required, non-null field and is always set
-    # correctly at purchase time), which is the authoritative source of
-    # "what's available in this branch". VehicleModel.branch / VehicleColor.branch
-    # can still be NULL on legacy master-data rows created before branch-wise
-    # master data was introduced, even though their Stock is correctly
-    # branch-scoped. Re-filtering by the master record's own branch field
-    # excluded those legacy-but-valid rows entirely, which is why the Model
-    # and Color dropdowns on the Sales page were rendering empty.
     models_qs = VehicleModel.objects.filter(id__in=available_model_ids, is_active=True)
     colors_qs = VehicleColor.objects.filter(id__in=available_color_ids, is_active=True)
 
@@ -1495,13 +1485,34 @@ def generate_invoice_pdf(request, sale_id):
 @login_required
 def customer(request):
     branch = get_user_branch_context(request)
-    sales_qs = Sales.objects.select_related('stock', 'stock__model', 'stock__color', 'stock__branch').order_by('-id')
+
+    sales_qs = (
+        Sales.objects
+        .select_related(
+            'stock',
+            'stock__model',
+            'stock__color',
+            'stock__branch'
+        )
+        .order_by('-id')
+    )
 
     if branch is not None:
         sales_qs = sales_qs.filter(stock__branch=branch)
 
-    return render(request, 'yakuza/customer.html', {'customers': sales_qs, 'vehicle_models': VehicleModel.objects.filter(is_active=True)})
+    # Invoice Settings
+    invoice_setting = InvoiceSetting.objects.first()
 
+    return render(
+        request,
+        'yakuza/customer.html',
+        {
+            'customers': sales_qs,
+            'vehicle_models': VehicleModel.objects.filter(is_active=True),
+            'invoice_setting': invoice_setting,
+            'branch': branch,
+        }
+    )
 
 @login_required
 def get_customer_invoice_ajax(request, sale_id):

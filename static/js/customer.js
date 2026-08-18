@@ -82,15 +82,7 @@ document.addEventListener("DOMContentLoaded", function () {
         document.getElementById("invNo").textContent = data.invoice_no || "-";
         document.getElementById("invDate").textContent = data.invoice_date || "-";
 
-        if (data.branch_address) {
-            document.getElementById("invHeaderAddress").textContent = data.branch_address;
-        }
-        if (data.branch_phone) {
-            document.getElementById("invHeaderPhone").textContent = data.branch_phone;
-        }
-        if (data.branch_gst) {
-            document.getElementById("invHeaderGst").textContent = data.branch_gst;
-        }
+        
 
         document.getElementById("invCustName").textContent = data.customer_name || "-";
         document.getElementById("invCustPhone").textContent = data.mobile_number || "-";
@@ -235,6 +227,25 @@ document.addEventListener("DOMContentLoaded", function () {
     if (printInvoiceBtn) {
         printInvoiceBtn.addEventListener("click", function () {
             const printableArea = document.getElementById("printable-invoice-container");
+            const printClone = printableArea.cloneNode(true);
+
+// Terms & Conditions section ne print-specific classes aapo
+const termsSection = printClone.lastElementChild;
+
+if (termsSection) {
+    termsSection.classList.add("terms-sig-flex");
+
+    const termsBox = termsSection.firstElementChild;
+    const signatureBox = termsSection.lastElementChild;
+
+    if (termsBox) {
+        termsBox.classList.add("terms-box");
+    }
+
+    if (signatureBox) {
+        signatureBox.classList.add("signature-box");
+    }
+}
             if (!printableArea) {
                 alert("Invoice area not found.");
                 return;
@@ -261,16 +272,83 @@ document.addEventListener("DOMContentLoaded", function () {
                         table { width: 100%; max-width: 100%; border-collapse: collapse; table-layout: fixed; box-sizing: border-box; }
                         th, td { border: 1.5px solid #000000 !important; border-collapse: collapse !important; padding: 8px 5px; font-size: 10px !important; line-height: 1.3; vertical-align: middle; word-wrap: break-word; overflow-wrap: break-word; text-align: center; }
                         th { font-weight: 600; background: #f2f2f2; }
-                        .bill-header, .bill-to-box, .bill-table, .inv-payment-summary-flex, .terms-sig-flex { margin: 8px 0 !important; page-break-inside: avoid; break-inside: avoid; }
+                        .bill-header, .bill-to-box, .bill-table, .inv-payment-summary-flex{ margin: 8px 0 !important; page-break-inside: avoid; break-inside: avoid; }
                         .bill-outer-border { border: 1px solid #000; padding: 8mm; box-sizing: border-box; }
                         .grand-total { font-weight: 700; font-size: 11px; border-top: 1px solid #000; padding-top: 3px; }
+                        .terms-sig-flex {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: flex-end !important;
+    width: 100% !important;
+    margin: 10px 0 0 0 !important;
+    padding: 0 !important;
+    text-align: left !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+}
+
+.terms-box {
+    width: 58% !important;
+    flex: 0 0 58% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    text-align: left !important;
+    font-size: 10px !important;
+}
+
+.terms-box strong {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 0 3px 0 !important;
+    padding: 0 !important;
+    text-align: left !important;
+}
+
+.terms-box ul {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    text-align: left !important;
+    list-style: none !important;
+}
+
+.terms-box li {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 0 2px 0 !important;
+    padding: 0 !important;
+    text-align: left !important;
+}
+
+.terms-box li::before {
+    content: "• " !important;
+}
+
+.terms-box ul > div {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    text-align: left !important;
+    white-space: pre-line !important;
+}
+
+.signature-box {
+    width: 38% !important;
+    flex: 0 0 38% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    text-align: center !important;
+}
                         .popup-actions-v2, .invoice-modal-close-icon, .sales-page-container, .toast-notification, .modal-close, button, input, select, textarea, ::-webkit-scrollbar { display: none !important; }
                         * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                        
                     </style>
                 </head>
                 <body>
                     <div class="print-wrapper">
-                        ${printableArea.outerHTML}
+                        ${printClone.outerHTML}
                     </div>
                 </body>
                 </html>
