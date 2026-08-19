@@ -9,7 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from .sync_ingest import ingest_sync_record
 from .models import Branch
-from .sync_models import SyncOutbox
+from .sync_models import SyncOutbox, SyncStatus
 
 logger = logging.getLogger(__name__)
 
@@ -268,25 +268,75 @@ class SyncReceiveView(APIView):
         try:
             with transaction.atomic():
 
-                received_record = SyncOutbox.objects.create(
-                    sync_id=sync_id,
-                    branch=branch,
-                    model_name=model_name,
-                    record_id=int(record_id),
-                    operation=operation,
-                    payload=payload,
-                    status="PENDING",
-                    attempts=1,
-                    last_attempt_at=timezone.now(),
+                # -------------------------------------------------
+                # Idempotency check
+                # -------------------------------------------------
+                existing_record = (
+                    SyncOutbox.objects
+                    .select_for_update()
+                    .filter(sync_id=sync_id)
+                    .first()
                 )
 
+                if existing_record is not None:
+
+                    # Already successfully processed
+                    if existing_record.status == SyncStatus.SYNCED:
+                        return Response(
+                            {
+                                "success": True,
+                                "message": "Sync record already processed.",
+                                "sync_id": sync_id,
+                                "status": "SYNCED",
+                            },
+                            status=status.HTTP_200_OK,
+                        )
+
+                    # Previously failed → retry ingestion
+                    received_record = existing_record
+                    received_record.branch = branch
+                    received_record.model_name = model_name
+                    received_record.record_id = int(record_id)
+                    received_record.operation = operation
+                    received_record.payload = payload
+                    received_record.status = SyncStatus.PENDING
+                    received_record.attempts += 1
+                    received_record.last_attempt_at = timezone.now()
+
+                    received_record.save(
+                        update_fields=[
+                            "branch",
+                            "model_name",
+                            "record_id",
+                            "operation",
+                            "payload",
+                            "status",
+                            "attempts",
+                            "last_attempt_at",
+                            "updated_at",
+                        ]
+                    )
+
+                else:
+                    # First time receiving this sync_id
+                    received_record = SyncOutbox.objects.create(
+                        sync_id=sync_id,
+                        branch=branch,
+                        model_name=model_name,
+                        record_id=int(record_id),
+                        operation=operation,
+                        payload=payload,
+                        status=SyncStatus.PENDING,
+                        attempts=1,
+                        last_attempt_at=timezone.now(),
+                    )
+
                 # -------------------------------------------------
-                # Automatically apply received record to the
-                # central business database.
+                # Apply received record to central business DB
                 # -------------------------------------------------
                 ingest_sync_record(received_record)
 
-                received_record.status = "SYNCED"
+                received_record.status = SyncStatus.SYNCED
                 received_record.last_error = None
                 received_record.synced_at = timezone.now()
 
@@ -299,6 +349,32 @@ class SyncReceiveView(APIView):
                     ]
                 )
 
+        except (ValueError, TypeError) as exc:
+            logger.exception(
+                "Sync ingest failed for %s",
+                sync_id,
+            )
+
+            if "received_record" in locals():
+                received_record.status = SyncStatus.FAILED
+                received_record.last_error = str(exc)
+                received_record.save(
+                    update_fields=[
+                        "status",
+                        "last_error",
+                        "updated_at",
+                    ]
+                )
+
+            return Response(
+                {
+                    "success": False,
+                    "message": "Previously failed sync record could not be ingested.",
+                    "sync_id": sync_id,
+                    "error": str(exc),
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
         except (ValueError, TypeError) as exc:
             logger.exception(
                 "Sync ingest failed for %s",
