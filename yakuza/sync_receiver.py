@@ -7,9 +7,11 @@ from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .sync_ingest import ingest_sync_record
+
 from .models import Branch
+from .sync_ingest import ingest_sync_record
 from .sync_models import SyncOutbox, SyncStatus
+
 
 logger = logging.getLogger(__name__)
 
@@ -18,12 +20,12 @@ class SyncReceiveView(APIView):
     """
     Central Super Admin endpoint for receiving branch synchronization data.
 
-    Security rules:
+    Security:
     - TokenAuthentication is mandatory.
-    - Only a user explicitly marked as Super Admin may use this endpoint.
-    - The branch is resolved from the authenticated service user's profile.
-    - The branch_code sent by the client is NEVER trusted for authorization.
-    - sync_id makes repeated delivery idempotent.
+    - Only SUPER_ADMIN accounts may use this endpoint.
+    - Branch is resolved from the authenticated user's profile.
+    - Client branch_code must match the authenticated branch.
+    - sync_id provides idempotent delivery.
     """
 
     authentication_classes = [TokenAuthentication]
@@ -31,9 +33,10 @@ class SyncReceiveView(APIView):
 
     def post(self, request, *args, **kwargs):
 
-        # ---------------------------------------------------------
-        # 1. Super Admin authorization
-        # ---------------------------------------------------------
+        # =========================================================
+        # 1. SUPER ADMIN AUTHORIZATION
+        # =========================================================
+
         profile = getattr(request.user, "userprofile", None)
 
         if not profile or profile.role != "SUPER_ADMIN":
@@ -45,9 +48,10 @@ class SyncReceiveView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # ---------------------------------------------------------
-        # 2. Validate payload
-        # ---------------------------------------------------------
+        # =========================================================
+        # 2. VALIDATE PAYLOAD
+        # =========================================================
+
         data = request.data
 
         required_fields = [
@@ -60,7 +64,8 @@ class SyncReceiveView(APIView):
         ]
 
         missing_fields = [
-            field for field in required_fields
+            field
+            for field in required_fields
             if field not in data
         ]
 
@@ -126,9 +131,21 @@ class SyncReceiveView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # ---------------------------------------------------------
-        # 3. Resolve branch from authenticated account
-        # ---------------------------------------------------------
+        try:
+            record_id = int(record_id)
+        except (TypeError, ValueError):
+            return Response(
+                {
+                    "success": False,
+                    "message": "record_id must be a valid integer.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # =========================================================
+        # 3. RESOLVE AUTHENTICATED BRANCH
+        # =========================================================
+
         authenticated_branch = profile.branch
 
         if not authenticated_branch:
@@ -140,10 +157,10 @@ class SyncReceiveView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # IMPORTANT:
-        # Client-provided branch_code is checked against the
-        # authenticated account's branch. It is NOT trusted.
-        if authenticated_branch.branch_code.upper() != branch_code:
+        if (
+            authenticated_branch.branch_code.upper()
+            != branch_code
+        ):
             logger.warning(
                 "Rejected cross-branch sync attempt. "
                 "User=%s authenticated_branch=%s claimed_branch=%s",
@@ -160,89 +177,10 @@ class SyncReceiveView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # ---------------------------------------------------------
-        # 4. Idempotency check
-        # ---------------------------------------------------------
-        
-        existing = SyncOutbox.objects.filter(sync_id=sync_id).first()
+        # =========================================================
+        # 4. VALIDATE ACTIVE BRANCH
+        # =========================================================
 
-        if existing:
-
-            # Already fully processed
-            if existing.status == "SYNCED":
-                return Response(
-                    {
-                        "success": True,
-                        "message": "Record was already received and ingested.",
-                        "sync_id": sync_id,
-                        "duplicate": True,
-                    },
-                    status=status.HTTP_200_OK,
-                )
-
-            # Previous attempt failed.
-            # Retry the ingest instead of silently ignoring it.
-            if existing.status == "FAILED":
-                try:
-                    ingest_sync_record(existing)
-
-                    existing.status = "SYNCED"
-                    existing.last_error = None
-                    existing.synced_at = timezone.now()
-                    existing.last_attempt_at = timezone.now()
-                    existing.attempts += 1
-
-                    existing.save(
-                        update_fields=[
-                            "status",
-                            "last_error",
-                            "synced_at",
-                            "last_attempt_at",
-                            "attempts",
-                            "updated_at",
-                        ]
-                    )
-
-                    return Response(
-                        {
-                            "success": True,
-                            "message": "Previously failed record was successfully ingested.",
-                            "sync_id": sync_id,
-                            "duplicate": True,
-                            "retried": True,
-                        },
-                        status=status.HTTP_200_OK,
-                    )
-
-                except Exception as exc:
-                    existing.status = "FAILED"
-                    existing.last_error = str(exc)
-                    existing.last_attempt_at = timezone.now()
-                    existing.attempts += 1
-
-                    existing.save(
-                        update_fields=[
-                            "status",
-                            "last_error",
-                            "last_attempt_at",
-                            "attempts",
-                            "updated_at",
-                        ]
-                    )
-
-                    return Response(
-                        {
-                            "success": False,
-                            "message": "Previously failed sync record could not be ingested.",
-                            "sync_id": sync_id,
-                            "error": str(exc),
-                        },
-                        status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    )
-
-        # ---------------------------------------------------------
-        # 5. Validate branch
-        # ---------------------------------------------------------
         try:
             branch = Branch.objects.get(
                 branch_code=branch_code,
@@ -257,20 +195,128 @@ class SyncReceiveView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # ---------------------------------------------------------
-        # 6. Store received sync record
-        #
-        # This first version intentionally stores the payload in
-        # the central outbox instead of directly modifying business
-        # tables. A separate ingest processor will safely apply
-        # Sales/Purchase/etc. after validation.
-        # ---------------------------------------------------------
+        # =========================================================
+        # 5. IDEMPOTENCY CHECK
+        # =========================================================
+
+        existing = SyncOutbox.objects.filter(
+            sync_id=sync_id
+        ).first()
+
+        if existing:
+
+            # -----------------------------------------------------
+            # Already successfully processed
+            # -----------------------------------------------------
+
+            if existing.status == SyncStatus.SYNCED:
+                return Response(
+                    {
+                        "success": True,
+                        "message": "Record was already received and ingested.",
+                        "sync_id": sync_id,
+                        "duplicate": True,
+                        "status": "SYNCED",
+                    },
+                    status=status.HTTP_200_OK,
+                )
+
+            # -----------------------------------------------------
+            # Previously failed
+            # -----------------------------------------------------
+
+            if existing.status == SyncStatus.FAILED:
+
+                try:
+                    existing.status = SyncStatus.PENDING
+                    existing.attempts += 1
+                    existing.last_attempt_at = timezone.now()
+
+                    existing.save(
+                        update_fields=[
+                            "status",
+                            "attempts",
+                            "last_attempt_at",
+                            "updated_at",
+                        ]
+                    )
+
+                    ingest_sync_record(existing)
+
+                    existing.status = SyncStatus.SYNCED
+                    existing.last_error = None
+                    existing.synced_at = timezone.now()
+
+                    existing.save(
+                        update_fields=[
+                            "status",
+                            "last_error",
+                            "synced_at",
+                            "updated_at",
+                        ]
+                    )
+
+                    return Response(
+                        {
+                            "success": True,
+                            "message": (
+                                "Previously failed record "
+                                "was successfully ingested."
+                            ),
+                            "sync_id": sync_id,
+                            "duplicate": True,
+                            "retried": True,
+                            "status": "SYNCED",
+                        },
+                        status=status.HTTP_200_OK,
+                    )
+
+                except Exception as exc:
+
+                    logger.exception(
+                        "Retry ingest failed for sync_id=%s",
+                        sync_id,
+                    )
+
+                    existing.status = SyncStatus.FAILED
+                    existing.last_error = str(exc)
+                    existing.last_attempt_at = timezone.now()
+
+                    existing.save(
+                        update_fields=[
+                            "status",
+                            "last_error",
+                            "last_attempt_at",
+                            "updated_at",
+                        ]
+                    )
+
+                    return Response(
+                        {
+                            "success": False,
+                            "message": (
+                                "Previously failed sync record "
+                                "could not be ingested."
+                            ),
+                            "sync_id": sync_id,
+                            "error": str(exc),
+                        },
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    )
+
+        # =========================================================
+        # 6. CREATE / STORE / INGEST NEW RECORD
+        # =========================================================
+
+        received_record = None
+
         try:
             with transaction.atomic():
 
                 # -------------------------------------------------
-                # Idempotency check
+                # Lock possible duplicate row
                 # -------------------------------------------------
+
                 existing_record = (
                     SyncOutbox.objects
                     .select_for_update()
@@ -278,30 +324,34 @@ class SyncReceiveView(APIView):
                     .first()
                 )
 
-                if existing_record is not None:
+                if existing_record:
 
-                    # Already successfully processed
+                    # Another request may have created it
+                    # between our first check and this transaction.
+
                     if existing_record.status == SyncStatus.SYNCED:
                         return Response(
                             {
                                 "success": True,
                                 "message": "Sync record already processed.",
                                 "sync_id": sync_id,
+                                "duplicate": True,
                                 "status": "SYNCED",
                             },
                             status=status.HTTP_200_OK,
                         )
 
-                    # Previously failed → retry ingestion
                     received_record = existing_record
+
                     received_record.branch = branch
                     received_record.model_name = model_name
-                    received_record.record_id = int(record_id)
+                    received_record.record_id = record_id
                     received_record.operation = operation
                     received_record.payload = payload
                     received_record.status = SyncStatus.PENDING
                     received_record.attempts += 1
                     received_record.last_attempt_at = timezone.now()
+                    received_record.last_error = None
 
                     received_record.save(
                         update_fields=[
@@ -313,17 +363,22 @@ class SyncReceiveView(APIView):
                             "status",
                             "attempts",
                             "last_attempt_at",
+                            "last_error",
                             "updated_at",
                         ]
                     )
 
                 else:
-                    # First time receiving this sync_id
+
+                    # -------------------------------------------------
+                    # First delivery
+                    # -------------------------------------------------
+
                     received_record = SyncOutbox.objects.create(
                         sync_id=sync_id,
                         branch=branch,
                         model_name=model_name,
-                        record_id=int(record_id),
+                        record_id=record_id,
                         operation=operation,
                         payload=payload,
                         status=SyncStatus.PENDING,
@@ -332,9 +387,14 @@ class SyncReceiveView(APIView):
                     )
 
                 # -------------------------------------------------
-                # Apply received record to central business DB
+                # INGEST INTO CENTRAL BUSINESS DATABASE
                 # -------------------------------------------------
+
                 ingest_sync_record(received_record)
+
+                # -------------------------------------------------
+                # MARK SYNCED
+                # -------------------------------------------------
 
                 received_record.status = SyncStatus.SYNCED
                 received_record.last_error = None
@@ -349,82 +409,59 @@ class SyncReceiveView(APIView):
                     ]
                 )
 
-        except (ValueError, TypeError) as exc:
-            logger.exception(
-                "Sync ingest failed for %s",
-                sync_id,
-            )
-
-            if "received_record" in locals():
-                received_record.status = SyncStatus.FAILED
-                received_record.last_error = str(exc)
-                received_record.save(
-                    update_fields=[
-                        "status",
-                        "last_error",
-                        "updated_at",
-                    ]
-                )
-
-            return Response(
-                {
-                    "success": False,
-                    "message": "Previously failed sync record could not be ingested.",
-                    "sync_id": sync_id,
-                    "error": str(exc),
-                },
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-        except (ValueError, TypeError) as exc:
-            logger.exception(
-                "Sync ingest failed for %s",
-                sync_id,
-            )
-
-            if "received_record" in locals():
-                received_record.status = "FAILED"
-                received_record.last_error = str(exc)
-                received_record.save(
-                    update_fields=[
-                        "status",
-                        "last_error",
-                        "updated_at",
-                    ]
-                )
-
-            return Response(
-                {
-                    "success": False,
-                    "message": "Synchronization ingest failed.",
-                    "error": str(exc),
-                    "sync_id": sync_id,
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         except Exception as exc:
+
             logger.exception(
                 "Failed to receive/ingest sync record %s",
                 sync_id,
             )
 
-            if "received_record" in locals():
-                received_record.status = "FAILED"
-                received_record.last_error = str(exc)
-                received_record.save(
-                    update_fields=[
-                        "status",
-                        "last_error",
-                        "updated_at",
-                    ]
-                )
+            if received_record is not None:
+
+                try:
+                    received_record.status = SyncStatus.FAILED
+                    received_record.last_error = str(exc)
+                    received_record.last_attempt_at = timezone.now()
+
+                    received_record.save(
+                        update_fields=[
+                            "status",
+                            "last_error",
+                            "last_attempt_at",
+                            "updated_at",
+                        ]
+                    )
+
+                except Exception:
+                    logger.exception(
+                        "Could not save FAILED status for sync_id=%s",
+                        sync_id,
+                    )
 
             return Response(
                 {
                     "success": False,
-                    "message": "Unable to process synchronization record.",
-                    "error": str(exc),
+                    "message": "Sync record could not be ingested.",
                     "sync_id": sync_id,
+                    "error": str(exc),
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+        # =========================================================
+        # 7. SUCCESS RESPONSE
+        # =========================================================
+
+        return Response(
+            {
+                "success": True,
+                "message": "Sync record received and ingested successfully.",
+                "sync_id": sync_id,
+                "branch_code": branch_code,
+                "model_name": model_name,
+                "record_id": record_id,
+                "operation": operation,
+                "status": "SYNCED",
+            },
+            status=status.HTTP_200_OK,
+        )
