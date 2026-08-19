@@ -4,7 +4,7 @@ import csv
 import re
 import os
 import ast
-
+from .sync_service import queue_sync
 from datetime import date
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
@@ -887,6 +887,13 @@ def purchase_page_view(request):
                     remarks=remarks,
                     created_by=request.user
                 )
+                
+                queue_sync(
+                    branch=branch,
+                    instance=purchase,
+                    model_name="Purchase",
+                    operation="CREATE",
+                )
 
                 raw_items = request.POST.get('vehicle_items_json') or request.POST.get('vehicle_items') or request.POST.get('items') or '[]'
                 vehicle_items = json.loads(raw_items) if isinstance(raw_items, str) else raw_items
@@ -932,30 +939,40 @@ def purchase_page_view(request):
                             purchase_price=unit_price
                         )
 
-                        # Create the AVAILABLE Stock rows for this PurchaseItem
-                        # directly, in the same transaction, so Stock creation
-                        # is guaranteed to happen and is not dependent on a
-                        # signal being connected. Stock is the single
-                        # authoritative inventory source that both Live Stock
-                        # and Sales read from.
-                        Stock.objects.bulk_create([
-                            Stock(
-                                purchase_item=purchase_item,
-                                branch=branch,
-                                company=vehicle_model.company,
-                                model=vehicle_model,
-                                color=color_obj,
-                                purchase_price=unit_price,
-                                stock_status=Stock.StockStatus.AVAILABLE,
-                                chassis_number=None,
-                                battery_number=None,
-                                motor_number=None,
-                                controller_number=None,
-                            )
-                            for _ in range(alloc_qty)
-                        ])
+                        queue_sync(
+                            branch=branch,
+                            instance=purchase_item,
+                            model_name="PurchaseItem",
+                            operation="CREATE",
+                        )
 
-                        alloc_total_qty += alloc_qty
+                        stock_items = [
+                        Stock(
+                            purchase_item=purchase_item,
+                            branch=branch,
+                            company=vehicle_model.company,
+                            model=vehicle_model,
+                            color=color_obj,
+                            purchase_price=unit_price,
+                            stock_status=Stock.StockStatus.AVAILABLE,
+                            chassis_number=None,
+                            battery_number=None,
+                            motor_number=None,
+                            controller_number=None,
+                        )
+                        for _ in range(alloc_qty)
+                    ]
+
+                    Stock.objects.bulk_create(stock_items)
+                    for stock in stock_items:
+                        queue_sync(
+                            branch=branch,
+                            instance=stock,
+                            model_name="Stock",
+                            operation="CREATE",
+                        )
+
+                    alloc_total_qty += alloc_qty
 
                     if alloc_total_qty <= 0:
                         raise ValueError(f"No valid color quantity allocated for model '{vehicle_model.model_name}'.")
@@ -1231,6 +1248,12 @@ def sales(request):
                 sale.discount = discount_val
                 sale.stock = stock_obj
                 sale.save()
+                queue_sync(
+                    branch=branch,
+                    instance=sale,
+                    model_name="Sales",
+                    operation="UPDATE",
+                )
             else:
                 prefix = (invoice_setting.invoice_prefix if invoice_setting and invoice_setting.invoice_prefix else (sys_settings.invoice_prefix if sys_settings else "INV-")) or "INV-"
                 year = timezone.now().year
@@ -1250,32 +1273,70 @@ def sales(request):
                     discount=discount_val,
                     created_by=request.user
                 )
+                queue_sync(
+                    branch=branch,
+                    instance=sale,
+                    model_name="Sales",
+                    operation="CREATE",
+                )                
 
             stock_obj.stock_status = Stock.StockStatus.SOLD
             stock_obj.sale = sale
             stock_obj.save()
-
+            
+            queue_sync(
+                branch=branch,
+                instance=stock_obj,
+                model_name="Stock",
+                operation="UPDATE",
+            )
             b_name = branch.branch_name if branch else "Main Branch"
-            existing_customer = Customer.objects.filter(mobile_number=contact_number).first()
+
+            # Customer must always be resolved inside the current branch.
+            customer_qs = Customer.objects.filter(
+                mobile_number=contact_number
+            )
+
+            if branch is not None:
+                customer_qs = customer_qs.filter(branch=branch)
+
+            existing_customer = customer_qs.first()
+
             if existing_customer:
                 existing_customer.customer_name = customer_name
                 existing_customer.aadhar_number = aadhar_number
+                existing_customer.branch = branch
                 existing_customer.branch_name = b_name
                 existing_customer.model_name = stock_obj.model.model_name
                 existing_customer.price = price_val
                 existing_customer.payment_mode = sale.get_payment_method_display()
                 existing_customer.save()
+
+                queue_sync(
+                    branch=branch,
+                    instance=existing_customer,
+                    model_name="Customer",
+                    operation="UPDATE",
+                )
+
             else:
-                Customer.objects.create(
+                customer = Customer.objects.create(
                     mobile_number=contact_number,
                     customer_name=customer_name,
                     aadhar_number=aadhar_number,
+                    branch=branch,
                     branch_name=b_name,
                     model_name=stock_obj.model.model_name,
                     price=price_val,
                     payment_mode=sale.get_payment_method_display()
                 )
 
+                queue_sync(
+                    branch=branch,
+                    instance=customer,
+                    model_name="Customer",
+                    operation="CREATE",
+                )
             return JsonResponse({
                 'status': 'success',
                 'sale_id': sale.id,
@@ -1456,31 +1517,40 @@ def save_and_share_whatsapp(request, sale_id=None):
 @login_required
 def generate_invoice_pdf(request, sale_id):
     sale = get_object_or_404(Sales, id=sale_id)
-    cust_name_clean = (sale.customer_name or "Customer").strip().replace(" ", "_")
-    inv_no_clean = str(sale.invoice_no).replace("/", "_")
+
+    cust_name_clean = (
+        sale.customer_name or "Customer"
+    ).strip().replace(" ", "_")
+
+    inv_no_clean = str(
+        sale.invoice_no or sale.id
+    ).replace("/", "_")
+
     custom_filename = f"{cust_name_clean}-{inv_no_clean}.pdf"
-    
+
+    # ---------------------------------------------------------
+    # PDF already created hoy to return saved PDF
+    # ---------------------------------------------------------
     if sale.invoice_pdf:
-        return FileResponse(sale.invoice_pdf.open('rb'), content_type='application/pdf', filename=custom_filename)
+        return FileResponse(
+            sale.invoice_pdf.open("rb"),
+            content_type="application/pdf",
+            as_attachment=False,
+            filename=custom_filename
+        )
 
-    context = {
-        'sale': sale,
-        'customer_name': sale.customer_name,
-        'mobile_number': sale.mobile_number,
-        'invoice_no': sale.invoice_no,
-        'invoice_date': getattr(sale, 'invoice_date', getattr(sale, 'created_at', None)),
-        'grand_total': sale.grand_total,
-    }
-    
-    html = render_to_string('sales/invoice_pdf_template.html', context)
-    response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = f'inline; filename="{custom_filename}"'
-    
-    pisa_status = pisa.CreatePDF(html, dest=response)
-    if pisa_status.err:
-        return HttpResponse('An error occurred while generating PDF.', status=500)
-    return response
-
+    # ---------------------------------------------------------
+    # PDF create nathi thayu
+    # Template thi navo PDF generate karvano nathi.
+    # Customer.js aa response joi ne popup batavse.
+    # ---------------------------------------------------------
+    return JsonResponse(
+        {
+            "status": "error",
+            "message": "Please Create Sales PDF first"
+        },
+        status=404
+    )
 
 @login_required
 def customer(request):

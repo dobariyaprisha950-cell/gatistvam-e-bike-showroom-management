@@ -90,9 +90,9 @@ class SalesAdmin(admin.ModelAdmin):
 
 @admin.register(Customer)
 class CustomerAdmin(admin.ModelAdmin):
-    list_display = ('customer_name', 'mobile_number', 'model_name', 'branch_name', 'payment_mode', 'created_at')
+    list_display = ('customer_name', 'mobile_number', 'model_name', 'branch', 'branch_name', 'payment_mode', 'created_at')
     search_fields = ('customer_name', 'mobile_number', 'model_name')
-    list_filter = ('branch_name', 'payment_mode', 'created_at')
+    list_filter = ('branch', 'branch_name', 'payment_mode', 'created_at')
 
 
 @admin.register(ExpenseMaster)

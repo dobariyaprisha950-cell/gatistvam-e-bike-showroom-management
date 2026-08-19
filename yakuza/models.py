@@ -227,7 +227,16 @@ class Customer(models.Model):
     invoice_photo = models.ImageField(upload_to='invoices/customer/', blank=True, null=True)
     model_name = models.CharField(max_length=100, blank=True, null=True)
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    # Legacy free-text branch label. Kept (not removed) so existing data,
+    # templates and exports that read branch_name keep working unchanged.
     branch_name = models.CharField(max_length=100, blank=True, null=True)
+    # Authoritative branch link used for isolation/filtering going forward.
+    # Nullable so existing rows are never deleted; a data migration backfills
+    # this from branch_name for rows that already match a Branch by name.
+    branch = models.ForeignKey(
+        Branch, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='customers'
+    )
     payment_mode = models.CharField(max_length=50, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -421,3 +430,6 @@ class BackupHistory(models.Model):
 
     def __str__(self):
         return f"{self.filename} ({self.created_at.strftime('%Y-%m-%d %H:%M')})"
+
+# Sync models
+from .sync_models import SyncOutbox, BranchSyncStatus

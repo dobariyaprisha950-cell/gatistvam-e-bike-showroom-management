@@ -4,6 +4,7 @@ from . import views
 from django.conf import settings
 from django.conf.urls.static import static
 from django.shortcuts import redirect
+from .sync_receiver import SyncReceiveView
 
 app_name = 'yakuza'
 
@@ -86,6 +87,7 @@ urlpatterns = [
     # REST APIs
     path('api/', include(router.urls)),
     path('reports/profit/', views.ProfitReportView.as_view(), name='profit-report'),
+    path("api/sync/receive/",SyncReceiveView.as_view(),name="sync-receive",),
 ]
 
 if settings.DEBUG:

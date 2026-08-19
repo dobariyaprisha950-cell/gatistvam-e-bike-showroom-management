@@ -70,7 +70,42 @@ document.addEventListener("DOMContentLoaded", function () {
         const num = parseFloat(val) || 0;
         return num.toFixed(2);
     }
+    function showInvoicePopup(message) {
+    const existingPopup = document.getElementById("invoiceMessagePopup");
 
+    if (existingPopup) {
+        existingPopup.remove();
+    }
+
+    const popup = document.createElement("div");
+    popup.id = "invoiceMessagePopup";
+
+    popup.innerHTML = `
+        <div class="invoice-message-backdrop">
+            <div class="invoice-message-box">
+                <div class="invoice-message-icon">!</div>
+
+                <div class="invoice-message-title">
+                    Please Create Sales PDF first
+                </div>
+
+                <button type="button" id="invoiceMessageOk">
+                    OK
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(popup);
+
+    const okButton = document.getElementById("invoiceMessageOk");
+
+    if (okButton) {
+        okButton.addEventListener("click", function () {
+            popup.remove();
+        });
+    }
+}
     function maskAadhaarNumber(aadhaar) {
         if (!aadhaar) return "N/A";
         const digits = String(aadhaar).replace(/\D/g, "");
@@ -229,23 +264,23 @@ document.addEventListener("DOMContentLoaded", function () {
             const printableArea = document.getElementById("printable-invoice-container");
             const printClone = printableArea.cloneNode(true);
 
-// Terms & Conditions section ne print-specific classes aapo
-const termsSection = printClone.lastElementChild;
+        // Terms & Conditions section ne print-specific classes aapo
+        const termsSection = printClone.lastElementChild;
 
-if (termsSection) {
-    termsSection.classList.add("terms-sig-flex");
+        if (termsSection) {
+            termsSection.classList.add("terms-sig-flex");
 
-    const termsBox = termsSection.firstElementChild;
-    const signatureBox = termsSection.lastElementChild;
+            const termsBox = termsSection.firstElementChild;
+            const signatureBox = termsSection.lastElementChild;
 
-    if (termsBox) {
-        termsBox.classList.add("terms-box");
-    }
+            if (termsBox) {
+                termsBox.classList.add("terms-box");
+            }
 
-    if (signatureBox) {
-        signatureBox.classList.add("signature-box");
-    }
-}
+            if (signatureBox) {
+                signatureBox.classList.add("signature-box");
+            }
+        }
             if (!printableArea) {
                 alert("Invoice area not found.");
                 return;
@@ -419,7 +454,8 @@ if (termsSection) {
             });
 
             if (!pdfResponse.ok) {
-                throw new Error("Django could not generate the invoice PDF.");
+                showInvoicePopup("Please Create Sales PDF first");
+                return;
             }
 
             const pdfBlob = await pdfResponse.blob();
@@ -479,7 +515,10 @@ if (termsSection) {
 
         } catch (error) {
             console.error("CUSTOMER INVOICE ERROR:", error);
-            alert(error.message || "Error generating or sharing invoice.");
+
+            showInvoicePopup(
+                error.message || "Error generating or sharing invoice."
+            );
         }
     }
 
