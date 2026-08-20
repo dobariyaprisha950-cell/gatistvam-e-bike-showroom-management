@@ -4,7 +4,7 @@ import csv
 import re
 import os
 import ast
-from .sync_service import queue_sync
+
 from datetime import date
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
@@ -242,8 +242,16 @@ class VehicleColorViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, IsBranchAdmin]
 
     def get_queryset(self):
+        # NOTE: must return EVERY active color valid for this branch --
+        # both branch-specific colors and legacy/global colors (branch is
+        # NULL). Previously this filtered on `branch=branch` only, which
+        # silently hid any color created before per-branch color scoping
+        # existed, making it look like "only the latest color" was
+        # available. See utils.get_visible_vehicle_colors for the single
+        # source of truth used by the Purchase page too.
         branch = get_user_branch_context(self.request)
-        return VehicleColor.objects.filter(branch=branch) if branch else VehicleColor.objects.none()
+        from .utils import get_visible_vehicle_colors
+        return get_visible_vehicle_colors(branch)
 
     def perform_create(self, serializer):
         branch = get_user_branch_context(self.request)
@@ -292,7 +300,12 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             from rest_framework.exceptions import ValidationError
             raise ValidationError('Selected supplier is not available in the current branch.')
         for item in items:
-            if item['model'].branch_id != branch.id or item['color'].branch_id != branch.id:
+            # Color may legitimately be a legacy/global master record
+            # (branch_id is None) -- only reject a color that belongs to
+            # a *different* branch. Model allocation is unaffected by
+            # this fix and keeps its existing strict-branch check.
+            color_branch_id = item['color'].branch_id
+            if item['model'].branch_id != branch.id or color_branch_id not in (branch.id, None):
                 from rest_framework.exceptions import ValidationError
                 raise ValidationError('Selected model or color is not available in the current branch.')
             
@@ -887,13 +900,6 @@ def purchase_page_view(request):
                     remarks=remarks,
                     created_by=request.user
                 )
-                
-                queue_sync(
-                    branch=branch,
-                    instance=purchase,
-                    model_name="Purchase",
-                    operation="CREATE",
-                )
 
                 raw_items = request.POST.get('vehicle_items_json') or request.POST.get('vehicle_items') or request.POST.get('items') or '[]'
                 vehicle_items = json.loads(raw_items) if isinstance(raw_items, str) else raw_items
@@ -922,6 +928,8 @@ def purchase_page_view(request):
                         raise ValueError(f"Color allocation is missing for vehicle model '{vehicle_model.model_name}'.")
 
                     alloc_total_qty = 0
+
+                    # દરેક કલર એલોકેશન માટે લૂપ
                     for alloc in color_allocations:
                         color_id = alloc.get('color_id') or alloc.get('color')
                         alloc_qty = int(alloc.get('quantity', 0))
@@ -929,7 +937,14 @@ def purchase_page_view(request):
                         if not color_id or alloc_qty <= 0:
                             continue
 
-                        color_obj = VehicleColor.objects.get(id=color_id, branch=branch, is_active=True)
+                        # Legacy/global colors (branch is NULL) are valid too
+                        color_obj = VehicleColor.objects.get(
+                            Q(branch=branch) | Q(branch__isnull=True),
+                            id=color_id,
+                            is_active=True,
+                        )
+
+                        # 1. કલર માટે PurchaseItem બનાવો
                         purchase_item = PurchaseItem.objects.create(
                             purchase=purchase,
                             company=vehicle_model.company,
@@ -939,40 +954,29 @@ def purchase_page_view(request):
                             purchase_price=unit_price
                         )
 
-                        queue_sync(
-                            branch=branch,
-                            instance=purchase_item,
-                            model_name="PurchaseItem",
-                            operation="CREATE",
-                        )
-
+                        # 2. આ કલર માટે Stock ઓબ્જેક્ટ્સની લિસ્ટ બનાવો
                         stock_items = [
-                        Stock(
-                            purchase_item=purchase_item,
-                            branch=branch,
-                            company=vehicle_model.company,
-                            model=vehicle_model,
-                            color=color_obj,
-                            purchase_price=unit_price,
-                            stock_status=Stock.StockStatus.AVAILABLE,
-                            chassis_number=None,
-                            battery_number=None,
-                            motor_number=None,
-                            controller_number=None,
-                        )
-                        for _ in range(alloc_qty)
-                    ]
+                            Stock(
+                                purchase_item=purchase_item,
+                                branch=branch,
+                                company=vehicle_model.company,
+                                model=vehicle_model,
+                                color=color_obj,
+                                purchase_price=unit_price,
+                                stock_status=Stock.StockStatus.AVAILABLE,
+                                chassis_number=None,
+                                battery_number=None,
+                                motor_number=None,
+                                controller_number=None,
+                            )
+                            for _ in range(alloc_qty)
+                        ]
 
-                    Stock.objects.bulk_create(stock_items)
-                    for stock in stock_items:
-                        queue_sync(
-                            branch=branch,
-                            instance=stock,
-                            model_name="Stock",
-                            operation="CREATE",
-                        )
+                        # 3. લૂપની અંદર જ સ્ટોક DB માં સેવ કરો
+                        Stock.objects.bulk_create(stock_items)
 
-                    alloc_total_qty += alloc_qty
+                        # 4. ટોટલ જથ્થો ઉમેરો
+                        alloc_total_qty += alloc_qty
 
                     if alloc_total_qty <= 0:
                         raise ValueError(f"No valid color quantity allocated for model '{vehicle_model.model_name}'.")
@@ -985,9 +989,47 @@ def purchase_page_view(request):
 
     suppliers = Supplier.objects.filter(is_active=True, branch=branch) if branch else Supplier.objects.none()
     models = VehicleModel.objects.filter(is_active=True, branch=branch) if branch else VehicleModel.objects.none()
-    colors = VehicleColor.objects.filter(is_active=True, branch=branch) if branch else VehicleColor.objects.none()
+    
+    from .utils import get_visible_vehicle_colors
+    colors = get_visible_vehicle_colors(branch)
 
     return render(request, 'yakuza/purchase.html', {'suppliers': suppliers, 'models': models, 'colors': colors})
+
+@transaction.atomic
+def repair_missing_stock():
+    created_count = 0
+    items = PurchaseItem.objects.select_related('purchase', 'company', 'model', 'color').all()
+    
+    for item in items:
+        # Currently existing stock rows for this purchase item
+        existing_stock_count = Stock.objects.filter(purchase_item=item).count()
+        missing_qty = item.quantity - existing_stock_count
+        
+        if missing_qty > 0:
+            new_stocks = [
+                Stock(
+                    purchase_item=item,
+                    branch=item.purchase.branch,
+                    company=item.company,
+                    model=item.model,
+                    color=item.color,
+                    purchase_price=item.purchase_price,
+                    stock_status=Stock.StockStatus.AVAILABLE,
+                    chassis_number=None,
+                    battery_number=None,
+                    motor_number=None,
+                    controller_number=None,
+                )
+                for _ in range(missing_qty)
+            ]
+            Stock.objects.bulk_create(new_stocks)
+            created_count += missing_qty
+            print(f"Repaired: Added {missing_qty} missing stock rows for Item ID {item.id} ({item.model.model_name} - {item.color.color_name})")
+
+    print(f"Total Repaired Stock Rows: {created_count}")
+
+
+repair_missing_stock()
 
 @login_required
 @require_POST
@@ -1248,12 +1290,7 @@ def sales(request):
                 sale.discount = discount_val
                 sale.stock = stock_obj
                 sale.save()
-                queue_sync(
-                    branch=branch,
-                    instance=sale,
-                    model_name="Sales",
-                    operation="UPDATE",
-                )
+               
             else:
                 prefix = (invoice_setting.invoice_prefix if invoice_setting and invoice_setting.invoice_prefix else (sys_settings.invoice_prefix if sys_settings else "INV-")) or "INV-"
                 year = timezone.now().year
@@ -1273,23 +1310,13 @@ def sales(request):
                     discount=discount_val,
                     created_by=request.user
                 )
-                queue_sync(
-                    branch=branch,
-                    instance=sale,
-                    model_name="Sales",
-                    operation="CREATE",
-                )                
+                         
 
             stock_obj.stock_status = Stock.StockStatus.SOLD
             stock_obj.sale = sale
             stock_obj.save()
             
-            queue_sync(
-                branch=branch,
-                instance=stock_obj,
-                model_name="Stock",
-                operation="UPDATE",
-            )
+           
             b_name = branch.branch_name if branch else "Main Branch"
 
             # Customer must always be resolved inside the current branch.
@@ -1312,12 +1339,7 @@ def sales(request):
                 existing_customer.payment_mode = sale.get_payment_method_display()
                 existing_customer.save()
 
-                queue_sync(
-                    branch=branch,
-                    instance=existing_customer,
-                    model_name="Customer",
-                    operation="UPDATE",
-                )
+                
 
             else:
                 customer = Customer.objects.create(
@@ -1331,12 +1353,7 @@ def sales(request):
                     payment_mode=sale.get_payment_method_display()
                 )
 
-                queue_sync(
-                    branch=branch,
-                    instance=customer,
-                    model_name="Customer",
-                    operation="CREATE",
-                )
+               
             return JsonResponse({
                 'status': 'success',
                 'sale_id': sale.id,

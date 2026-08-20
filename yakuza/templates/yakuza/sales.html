@@ -100,7 +100,7 @@
                                 <label for="price">Base Price (Excl. GST) (₹) <span class="required">*</span></label>
                                 <div class="input-icon-wrapper">
                                     <i class="input-icon fas fa-rupee-sign"></i>
-                                    <input type="number" name="price" id="price" value="{% if edit_sale %}{{ edit_sale.selling_price }}{% else %}0{% endif %}" min="0" step="any" required>
+                                    <input type="number" name="price" id="price" placeholder="Enter Price" value="{% if edit_sale %}{{ edit_sale.selling_price }}{% endif %}" min="0" step="any" required>
                                 </div>
                             </div>
 
@@ -148,7 +148,6 @@
                                         <option value="Cash" {% if edit_sale and edit_sale.payment_method|upper == "CASH" %}selected{% endif %}>Cash</option>
                                         <option value="UPI" {% if edit_sale and edit_sale.payment_method|upper == "UPI" %}selected{% endif %}>UPI</option>
                                         <option value="EMI" {% if edit_sale and edit_sale.payment_method|upper == "EMI" %}selected{% endif %}>EMI</option>
-                                        <option value="Card" {% if edit_sale and edit_sale.payment_method|upper == "CARD" %}selected{% endif %}>Card</option>
                                     </select>
                                 </div>
                             </div>
@@ -177,10 +176,6 @@
                             <label>CGST (2.5%):</label>
                             <span id="lblCgstAmount" class="summary-value">₹ 0.00</span>
                         </div>
-                        <div class="summary-line align-center">
-                            <label for="discountInput">Discount (₹):</label>
-                            <input type="number" name="discount" id="discountInput" class="small-input" value="{{ edit_sale.discount|default:'0' }}" min="0">
-                        </div>
                         
                         <hr class="summary-divider">
                         
@@ -195,7 +190,6 @@
                     </div>
                 </div>
             </div>
-
         </div>
     </div>
 </form>
@@ -315,60 +309,62 @@
                             <p>Sub Total: ₹ <span id="previewSubtotal">0.00</span></p>
                             <p>SGST @ 2.5%: ₹ <span id="previewSgst">0.00</span></p>
                             <p>CGST @ 2.5%: ₹ <span id="previewCgst">0.00</span></p>
-                            <p>Discount: ₹ <span id="previewDiscount">0.00</span></p>
                             <p class="final-amount-text">Final Amount: ₹ <span id="previewFinalAmount">0.00</span></p>
                         </div>
                     </div>
 
                     <!-- Terms & Signature Section -->
-<div class="terms-sig-flex">
+                    <div class="terms-sig-flex">
 
-    <!-- Terms & Conditions -->
-    <div class="terms-box">
-        <strong>Terms & Conditions</strong>
+                        <!-- Terms & Conditions -->
+                        <div class="terms-box">
+                            <strong>Terms & Conditions</strong>
 
-        {% if invoice_setting.terms %}
-            <div class="terms-content">
-                {{ invoice_setting.terms|linebreaksbr }}
+                            {% if invoice_setting.terms %}
+                                <div class="terms-content">
+                                    {{ invoice_setting.terms|linebreaksbr }}
+                                </div>
+                            {% else %}
+                                <ul class="terms-list">
+                                    <li>Goods once sold will not be taken back or exchanged.</li>
+                                    <li>Warranty as per manufacturer policy only.</li>
+                                    <li>Battery warranty subject to usage and charging conditions.</li>
+                                    <li>Any physical damage is not covered under warranty.</li>
+                                </ul>
+                            {% endif %}
+                        </div>
+
+                        <!-- Signature -->
+                        <div class="signature-box">
+                            <div class="sig-space-stamp">
+
+                                {% if invoice_setting.authorized_signature %}
+                                    <img
+                                        src="{{ invoice_setting.authorized_signature.url }}"
+                                        alt="Authorized Signature"
+                                        style="max-height: 45px; margin-right: 10px;"
+                                    >
+                                {% endif %}
+
+                                {% if invoice_setting.company_seal %}
+                                    <img
+                                        src="{{ invoice_setting.company_seal.url }}"
+                                        alt="Company Seal"
+                                        style="max-height: 50px;"
+                                    >
+                                {% endif %}
+
+                            </div>
+
+                            <div class="seal-text">
+                                Authorized Seal & Signature
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
             </div>
-        {% else %}
-            <ul class="terms-list">
-                <li>Goods once sold will not be taken back or exchanged.</li>
-                <li>Warranty as per manufacturer policy only.</li>
-                <li>Battery warranty subject to usage and charging conditions.</li>
-                <li>Any physical damage is not covered under warranty.</li>
-            </ul>
-        {% endif %}
-    </div>
 
-    <!-- Signature -->
-    <div class="signature-box">
-        <div class="sig-space-stamp">
-
-            {% if invoice_setting.authorized_signature %}
-                <img
-                    src="{{ invoice_setting.authorized_signature.url }}"
-                    alt="Authorized Signature"
-                    style="max-height: 45px; margin-right: 10px;"
-                >
-            {% endif %}
-
-            {% if invoice_setting.company_seal %}
-                <img
-                    src="{{ invoice_setting.company_seal.url }}"
-                    alt="Company Seal"
-                    style="max-height: 50px;"
-                >
-            {% endif %}
-
-        </div>
-
-        <div class="seal-text">
-            Authorized Seal & Signature
-        </div>
-    </div>
-
-</div>
             <!-- MODAL ACTION BUTTONS -->
             <div class="popup-actions-v2">
                 <button type="button" class="btn-action btn-print-v2" id="btnPrintInvoice">

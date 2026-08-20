@@ -3,10 +3,39 @@ import csv
 
 from django.db import transaction
 from django.utils import timezone
-from django.db.models import Sum
+from django.db.models import Sum, Q
 from django.http import HttpResponse
 
 from .models import Notification, Branch, AuditLog
+
+
+def get_visible_vehicle_colors(branch):
+    """
+    Centralized, branch-safe VehicleColor lookup.
+
+    Returns every ACTIVE color that is valid for the given branch:
+      - colors explicitly created for this branch, AND
+      - legacy/global colors created before per-branch color scoping
+        existed (branch is NULL) -- these are still valid system-wide
+        master data and must never be silently dropped.
+
+    IMPORTANT: This must be the single source of truth for "which colors
+    can this branch use" so the Purchase page, the VehicleColor API, and
+    purchase submission all agree on the same list. Do NOT replace this
+    with `.filter(branch=branch)` alone (drops legacy colors) and never
+    slice/limit the result (e.g. `.last()`, `[:1]`, `order_by('-id')[:1]`)
+    -- every matching color must be returned.
+    """
+    if not branch:
+        from .models import VehicleColor
+        return VehicleColor.objects.none()
+
+    from .models import VehicleColor
+
+    return VehicleColor.objects.filter(
+        Q(branch=branch) | Q(branch__isnull=True),
+        is_active=True,
+    ).order_by('color_name')
 
 
 def get_client_ip(request):

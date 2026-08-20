@@ -70,7 +70,7 @@ class SalesForm(forms.ModelForm):
         model = Sales
         fields = [
             'invoice_date', 'customer_name', 'mobile_number', 'aadhar_number',
-            'stock', 'selling_price', 'discount', 'payment_method'
+            'stock', 'selling_price', 'payment_method'
         ]
         widgets = {
             'invoice_date': forms.DateInput(attrs={'type': 'date'}),
@@ -81,8 +81,7 @@ class SalesForm(forms.ModelForm):
         if stock and stock.stock_status != Stock.StockStatus.AVAILABLE:
             raise ValidationError("Selected vehicle stock is not available for sale.")
         return stock
-
-
+    
 class ExpenseMasterForm(forms.ModelForm):
     class Meta:
         model = ExpenseMaster

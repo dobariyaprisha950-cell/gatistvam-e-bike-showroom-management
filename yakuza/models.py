@@ -186,14 +186,13 @@ class Sales(models.Model):
     aadhar_number = models.CharField(max_length=12, validators=[validate_aadhar_number], blank=True, null=True)
     stock = models.OneToOneField(Stock, on_delete=models.PROTECT, related_name='sale_transaction')
     selling_price = models.DecimalField(max_digits=10, decimal_places=2)
-    discount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, editable=False)
     cgst = models.DecimalField(max_digits=10, decimal_places=2, editable=False)
     sgst = models.DecimalField(max_digits=10, decimal_places=2, editable=False)
     grand_total = models.DecimalField(max_digits=10, decimal_places=2, editable=False)
     payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices, default=PaymentMethod.CASH)
     invoice_photo = models.ImageField(upload_to='invoices/', blank=True, null=True)
-    invoice_pdf = models.FileField(upload_to='invoices/pdf/',blank=True,null=True)
+    invoice_pdf = models.FileField(upload_to='invoices/pdf/', blank=True, null=True)
     created_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name='created_sales')
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -201,16 +200,14 @@ class Sales(models.Model):
         verbose_name_plural = "Sales"
 
     def save(self, *args, **kwargs):
-        discounted = self.selling_price - self.discount
-        self.subtotal = round(discounted, 2)
+        self.subtotal = round(self.selling_price, 2)
         self.cgst = round(self.subtotal * Decimal('0.025'), 2)
         self.sgst = round(self.subtotal * Decimal('0.025'), 2)
-        self.grand_total = round(self.subtotal + self.cgst + self.sgst,2)
-        super().save(*args, **kwargs)    
-        
+        self.grand_total = round(self.subtotal + self.cgst + self.sgst, 2)
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"Invoice #{self.invoice_no} - {self.customer_name}"
-
 
 class Customer(models.Model):
     invoice_no = models.CharField(
@@ -431,5 +428,3 @@ class BackupHistory(models.Model):
     def __str__(self):
         return f"{self.filename} ({self.created_at.strftime('%Y-%m-%d %H:%M')})"
 
-# Sync models
-from .sync_models import SyncOutbox, BranchSyncStatus

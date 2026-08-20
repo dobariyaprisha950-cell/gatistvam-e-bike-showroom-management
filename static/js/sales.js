@@ -13,7 +13,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const controllerNumberInput = document.getElementById("controllerNumber");
 
     const paymentTypeSelect = document.getElementById("paymentType");
-    const discountInput = document.getElementById("discountInput");
 
     const lblSubtotal = document.getElementById("lblSubtotal");
     const lblSgstAmount = document.getElementById("lblSgstAmount");
@@ -58,7 +57,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const previewSubtotal = document.getElementById("previewSubtotal");
     const previewSgst = document.getElementById("previewSgst");
     const previewCgst = document.getElementById("previewCgst");
-    const previewDiscount = document.getElementById("previewDiscount");
     const previewFinalAmount = document.getElementById("previewFinalAmount");
 
     function showToast(msg) {
@@ -142,26 +140,23 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function calculateBilling() {
         const price = parseFloat(priceInput?.value) || 0;
-        const discount = parseFloat(discountInput?.value) || 0;
 
-        const discounted = Math.max(0, price - discount);
-        const sgst = Math.round(discounted * 0.025 * 100) / 100;
-        const cgst = Math.round(discounted * 0.025 * 100) / 100;
-        const subtotal = discounted;
-        const grandTotal = discounted + sgst + cgst;
+        const subtotal = price;
+        const sgst = Math.round(subtotal * 0.025 * 100) / 100;
+        const cgst = Math.round(subtotal * 0.025 * 100) / 100;
+        const grandTotal = subtotal + sgst + cgst;
 
         if (lblSubtotal) lblSubtotal.textContent = `₹ ${subtotal.toFixed(2)}`;
         if (lblSgstAmount) lblSgstAmount.textContent = `₹ ${sgst.toFixed(2)}`;
         if (lblCgstAmount) lblCgstAmount.textContent = `₹ ${cgst.toFixed(2)}`;
         if (lblGrandTotal) lblGrandTotal.textContent = `₹ ${grandTotal.toFixed(2)}`;
 
-        return { subtotal, sgst, cgst, grandTotal, discount };
+        return { subtotal, sgst, cgst, grandTotal };
     }
 
     if (priceInput) priceInput.addEventListener("input", calculateBilling);
-    if (discountInput) discountInput.addEventListener("input", calculateBilling);
     
-    // Automatically recalculate summary on page load (preserves prefilled values in edit mode)
+    // Automatically recalculate summary on page load
     calculateBilling();
 
     // 3. MODEL -> COLOR -> CHASSIS CASCADING (branch-scoped, stock-driven)
@@ -243,7 +238,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (modelNameInput) modelNameInput.addEventListener("change", onModelChanged);
     if (vehicleColorInput) vehicleColorInput.addEventListener("change", onColorChanged);
 
-    // Prime the chassis suggestions on load if a model/color is already selected (edit mode)
     if (modelNameInput?.value && vehicleColorInput?.value) {
         onColorChanged();
     }
@@ -349,7 +343,6 @@ document.addEventListener("DOMContentLoaded", () => {
                     if (previewSubtotal) previewSubtotal.textContent = billCalc.subtotal.toFixed(2);
                     if (previewSgst) previewSgst.textContent = billCalc.sgst.toFixed(2);
                     if (previewCgst) previewCgst.textContent = billCalc.cgst.toFixed(2);
-                    if (previewDiscount) previewDiscount.textContent = billCalc.discount.toFixed(2);
                     if (previewFinalAmount) previewFinalAmount.textContent = billCalc.grandTotal.toFixed(2);
 
                     openModal();
@@ -384,23 +377,15 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             const printClone = printableArea.cloneNode(true);
-
-            // Terms & Conditions section ne print-specific classes aapo
             const termsSection = printClone.querySelector(".terms-sig-flex");
 
             if (termsSection) {
                 termsSection.classList.add("terms-sig-flex");
-
                 const termsBox = termsSection.firstElementChild;
                 const signatureBox = termsSection.lastElementChild;
 
-                if (termsBox) {
-                    termsBox.classList.add("terms-box");
-                }
-
-                if (signatureBox) {
-                    signatureBox.classList.add("signature-box");
-                }
+                if (termsBox) termsBox.classList.add("terms-box");
+                if (signatureBox) signatureBox.classList.add("signature-box");
             }
 
             const printWindow = window.open("", "_blank", "width=900,height=1200");
@@ -425,24 +410,23 @@ document.addEventListener("DOMContentLoaded", () => {
                         @page { size: A4 portrait; margin: 0; }
                         html, body { margin: 0; padding: 0; width: 210mm; height: 297mm; background: #fff; overflow: hidden; }
                         .print-wrapper {
-    display: block !important;
-    width: 210mm !important;
-    height: 297mm !important;
-    box-sizing: border-box !important;
-    padding: 10mm 5mm 5mm 5mm !important;
-    margin: 0 !important;
-}
-
-#printable-invoice-container {
-    box-sizing: border-box !important;
-    width: 190mm !important;
-    max-width: 190mm !important;
-    min-width: 200mm !important;
-    margin: 0 auto !important;
-    display: block !important;
-    transform-origin: top center !important;
-    transform: scale(1, 1.35);
-}
+                            display: block !important;
+                            width: 210mm !important;
+                            height: 297mm !important;
+                            box-sizing: border-box !important;
+                            padding: 10mm 5mm 5mm 5mm !important;
+                            margin: 0 !important;
+                        }
+                        #printable-invoice-container {
+                            box-sizing: border-box !important;
+                            width: 190mm !important;
+                            max-width: 190mm !important;
+                            min-width: 200mm !important;
+                            margin: 0 auto !important;
+                            display: block !important;
+                            transform-origin: top center !important;
+                            transform: scale(1, 1.35);
+                        }
                         table { width: 100%; max-width: 100%; border-collapse: collapse; table-layout: fixed; box-sizing: border-box; }
                         th, td { border: 1.5px solid #000000 !important; border-collapse: collapse !important; padding: 8px 5px; font-size: 10px !important; line-height: 1.3; vertical-align: middle; word-wrap: break-word; overflow-wrap: break-word; text-align: center; }
                         th { font-weight: 600; background: #f2f2f2; }
@@ -453,67 +437,60 @@ document.addEventListener("DOMContentLoaded", () => {
                         .bill-outer-border { border: 1px solid #000; padding: 8mm; box-sizing: border-box; }
                         .grand-total { font-weight: 700; font-size: 11px; border-top: 1px solid #000; padding-top: 3px; }
                         .terms-sig-flex {
-    display: flex !important;
-    justify-content: space-between !important;
-    align-items: flex-end !important;
-    width: 100% !important;
-    margin: 10px 0 0 0 !important;
-    padding: 0 !important;
-    text-align: left !important;
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-}
-
-.terms-box {
-    width: 58% !important;
-    flex: 0 0 58% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    text-align: left !important;
-    font-size: 10px !important;
-}
-
-.terms-box strong {
-    display: block !important;
-    width: 100% !important;
-    margin: 0 0 4px 0 !important;
-    padding: 0 !important;
-    text-align: left !important;
-}
-
-.terms-box ul {
-    display: block !important;
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    text-align: left !important;
-    list-style: none !important;
-}
-
-.terms-box li {
-    display: block !important;
-    width: 100% !important;
-    margin: 0 0 3px 0 !important;
-    padding: 0 !important;
-    text-align: left !important;
-    white-space: normal !important;
-    clear: both !important;
-}
-
-.terms-box li::before {
-    content: "• " !important;
-}
-    
-.signature-box {
-    width: 38% !important;
-    flex: 0 0 38% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    text-align: center !important;
-}
+                            display: flex !important;
+                            justify-content: space-between !important;
+                            align-items: flex-end !important;
+                            width: 100% !important;
+                            margin: 10px 0 0 0 !important;
+                            padding: 0 !important;
+                            text-align: left !important;
+                            page-break-inside: avoid !important;
+                            break-inside: avoid !important;
+                        }
+                        .terms-box {
+                            width: 58% !important;
+                            flex: 0 0 58% !important;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                            text-align: left !important;
+                            font-size: 10px !important;
+                        }
+                        .terms-box strong {
+                            display: block !important;
+                            width: 100% !important;
+                            margin: 0 0 4px 0 !important;
+                            padding: 0 !important;
+                            text-align: left !important;
+                        }
+                        .terms-box ul {
+                            display: block !important;
+                            width: 100% !important;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                            text-align: left !important;
+                            list-style: none !important;
+                        }
+                        .terms-box li {
+                            display: block !important;
+                            width: 100% !important;
+                            margin: 0 0 3px 0 !important;
+                            padding: 0 !important;
+                            text-align: left !important;
+                            white-space: normal !important;
+                            clear: both !important;
+                        }
+                        .terms-box li::before {
+                            content: "• " !important;
+                        }
+                        .signature-box {
+                            width: 38% !important;
+                            flex: 0 0 38% !important;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                            text-align: center !important;
+                        }
                         .popup-actions-v2, .invoice-modal-close-icon, .sales-page-container, .toast-notification, .modal-close, button, input, select, textarea, ::-webkit-scrollbar { display: none !important; }
                         * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        
                     </style>
                 </head>
                 <body>
