@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: gatistvam-central
+    runtime: python
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn showroom_backend.wsgi:application"
+    envVars:
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: "3.14.6"
