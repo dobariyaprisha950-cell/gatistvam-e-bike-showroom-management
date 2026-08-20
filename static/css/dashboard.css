@@ -851,12 +851,57 @@ body {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    max-height: 228px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.card.alert-card {
+    width: 100%;
+    min-width: 0; /* Bootstrap / Flex Grid માં ઓવરફ્લો અટકાવવા માટે ખૂબ જરૂરી */
+    box-sizing: border-box;
+    overflow: hidden;
+}
+.alert-card .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+.alert-card .view-all-link {
+    white-space: nowrap; /* View All લખાણ તૂટે નહીં */
+}
+/* Custom Scrollbar for Alert List Area */
+.alert-list::-webkit-scrollbar {
+    width: 4px;
+}
+
+.alert-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.alert-list::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+}
+
+.alert-list::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+.alert-list {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
 }
 
 .alert-item {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 10px;
+    padding: 10px;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .alert-img-box {
@@ -886,11 +931,13 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 100%;
+    margin:0;
 }
 
 .alert-info p {
     font-size: 10.5px;
     color: var(--text-muted);
+    margin:0;
 }
 
 .badge-low {
@@ -900,6 +947,7 @@ body {
     font-weight: 700;
     padding: 3px 8px;
     border-radius: 6px;
+    white-space: nowrap;
     flex-shrink: 0;
 }
 

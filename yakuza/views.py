@@ -4,12 +4,20 @@ import csv
 import re
 import os
 import ast
-
+import io
+import django.conf
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+import calendar
+from pathlib import Path
 from datetime import date
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
+from reportlab.lib.pagesizes import A4, landscape
 from decimal import Decimal,InvalidOperation
 from datetime import time, datetime, timedelta
 from urllib.parse import quote
@@ -57,29 +65,31 @@ from yakuza.serializers import (
 )
 
 
+
 def format_indian_currency(amount):
-    """Formats a numeric amount into Indian Currency display format without decimals."""
     if amount is None:
         return "0"
+
     val = int(round(Decimal(str(amount))))
     s = str(abs(val))
+
     if len(s) <= 3:
         formatted = s
     else:
         last3 = s[-3:]
         other = s[:-3]
-        res = ""
+        parts = []
+
         while len(other) > 2:
-            res = "," + other[-2:] + res
+            parts.insert(0, other[-2:])
             other = other[:-2]
-        formatted = other + res + "," + last3
+
+        parts.insert(0, other)
+        formatted = ",".join(parts) + "," + last3
+
     return f"-{formatted}" if val < 0 else formatted
 
-
 def format_display_number(num):
-    """Formats plain numbers with Indian standard separators."""
-    if num is None:
-        return "0"
     return format_indian_currency(num)
 
 def get_user_branch_context(request):
@@ -198,6 +208,72 @@ def log_audit(user, module, action, details="", old_val="", new_val="", request=
         ip_address=ip_addr
     )
 
+# ==========================================
+# LOW STOCK NOTIFICATION SYNCHRONIZER
+# ==========================================
+def sync_low_stock_notifications(branch=None):
+    """
+    Synchronizes real database stock data with the Notification system.
+    Creates, updates, or cleans up Low Stock Notification records for the given branch.
+    Only triggers when current_stock == 1 for a specific MODEL + COLOR combination.
+    """
+    if branch is not None:
+        branches = [branch]
+    else:
+        branches = list(Branch.objects.filter(is_active=True))
+
+    for b in branches:
+        # Group available stock by model and color for this branch
+        available_stock_qs = (
+            Stock.objects.filter(
+                branch=b,
+                stock_status=Stock.StockStatus.AVAILABLE
+            )
+            .values('model__id', 'model__model_name', 'color__id', 'color__color_name')
+            .annotate(current_stock=Count('id'))
+            .filter(current_stock=1)  # EXACTLY 1 MODEL IN STOCK
+        )
+
+        active_low_stock_titles = set()
+
+        for item in available_stock_qs:
+            model_name = item['model__model_name'] or 'Vehicle'
+            color_name = item['color__color_name'] or 'N/A'
+            
+            # Format title and message using dynamic database values
+            title = f"Low Stock Alert: {model_name} ({color_name})"
+            message = f"Low Stock Alert: {model_name} ({color_name}) have only 1 model."
+            
+            active_low_stock_titles.add(title)
+
+            # Prevent duplicate notifications for the same branch + model + color
+            notif, created = Notification.objects.get_or_create(
+                branch=b,
+                notification_type=Notification.NotificationType.LOW_STOCK,
+                title=title,
+                defaults={
+                    'message': message,
+                    'is_read': False
+                }
+            )
+            
+            # Update existing notification message if needed
+            if not created and notif.message != message:
+                notif.message = message
+                notif.save(update_fields=['message'])
+
+        # Remove notifications where current_stock is no longer equal to 1 (e.g. stock becomes 2 or more, or 0)
+        Notification.objects.filter(
+            branch=b,
+            notification_type=Notification.NotificationType.LOW_STOCK
+        ).exclude(title__in=active_low_stock_titles).delete()
+
+
+def check_and_create_low_stock_notifications(branch=None):
+    """
+    Wrapper function calling the synchronizer logic.
+    """
+    sync_low_stock_notifications(branch=branch)
 
 # ==========================================
 # REST FRAMEWORK VIEWSETS
@@ -614,6 +690,8 @@ def register(request):
 def dashboard(request):
     branch = get_user_branch_context(request)
 
+    sync_low_stock_notifications(branch)
+
     stock_qs = Stock.objects.all()
     if branch is not None:
         stock_qs = stock_qs.filter(branch=branch)
@@ -710,7 +788,6 @@ def dashboard(request):
     for pur in recent_purchases:
         pur.computed_total = pur.items.aggregate(total=Sum('total_amount'))['total'] or Decimal('0.00')
 
-    # --- SOTRE & EDIT SALE DROPDOWN LOGIC ---
     edit_id = request.GET.get('edit_id')
     edit_sale = Sales.objects.filter(id=edit_id).first() if edit_id else None
 
@@ -723,12 +800,6 @@ def dashboard(request):
         if edit_sale.stock.color_id:
             available_color_ids.add(edit_sale.stock.color_id)
 
-    # See sales() view for why we do not re-filter by VehicleModel.branch /
-    # VehicleColor.branch here: available_model_ids / available_color_ids are
-    # already derived from Stock rows scoped to the current branch (the
-    # reliable source of branch truth), and re-filtering by the master
-    # record's own (possibly legacy-NULL) branch field would incorrectly
-    # drop valid entries.
     models_qs = VehicleModel.objects.filter(id__in=available_model_ids, is_active=True)
     colors_qs = VehicleColor.objects.filter(id__in=available_color_ids, is_active=True)
 
@@ -746,13 +817,65 @@ def dashboard(request):
         'low_stock_items': low_stock_items,
         'recent_sales': recent_sales,
         'recent_purchases': recent_purchases,
-        # Added missing context keys:
         'edit_sale': edit_sale,
         'models': models_qs,
         'colors': colors_qs,
     }
     
     return render(request, 'yakuza/dashboard.html', context)
+
+
+@login_required
+def get_sales_chart_data(request):
+    filter_type = request.GET.get('filter', 'this_month')
+    branch = get_user_branch_context(request)
+    
+    sales_qs = Sales.objects.all()
+    if branch is not None:
+        sales_qs = sales_qs.filter(stock__branch=branch)
+        
+    labels, data = [], []
+    now = timezone.now()
+
+    if filter_type == 'this_month':
+        sales_grouped = (
+            sales_qs.filter(invoice_date__year=now.year, invoice_date__month=now.month)
+            .annotate(day=TruncDay('invoice_date'))
+            .values('day')
+            .annotate(total=Sum('grand_total'))
+            .order_by('day')
+        )
+        for entry in sales_grouped:
+            if entry['day']:
+                labels.append(entry['day'].strftime('%d %b'))
+                data.append(float(entry['total'] or 0))
+
+    elif filter_type == 'this_year':
+        sales_grouped = (
+            sales_qs.filter(invoice_date__year=now.year)
+            .annotate(month=TruncMonth('invoice_date'))
+            .values('month')
+            .annotate(total=Sum('grand_total'))
+            .order_by('month')
+        )
+        for entry in sales_grouped:
+            if entry['month']:
+                labels.append(entry['month'].strftime('%b'))
+                data.append(float(entry['total'] or 0))
+
+    else:
+        sales_grouped = (
+            sales_qs.annotate(month=TruncMonth('invoice_date'))
+            .values('month')
+            .annotate(total=Sum('grand_total'))
+            .order_by('month')
+        )
+        for entry in sales_grouped:
+            if entry['month']:
+                labels.append(entry['month'].strftime('%b %Y'))
+                data.append(float(entry['total'] or 0))
+
+    return JsonResponse({'labels': labels, 'data': data})
 
 @login_required
 def get_sales_chart_data(request):
@@ -1770,37 +1893,7 @@ def generate_daily_reminder_check(branch=None):
         return create_daily_sales_reminder(branch)
     return [create_daily_sales_reminder(item) for item in Branch.objects.filter(is_active=True)]
 
-def check_and_create_low_stock_notifications(branch=None):
-    """Calculates stock from AVAILABLE status only and creates alerts per branch context."""
-    from yakuza.models import Stock, Settings, Notification, Branch
 
-    branches = [branch] if branch else Branch.objects.filter(is_active=True)
-    sys_settings = Settings.load()
-    threshold = getattr(sys_settings, 'low_stock_threshold', 2)
-
-    for b in branches:
-        # Stock status MUST be AVAILABLE (SOLD stock excluded)
-        available_stock_count = Stock.objects.filter(
-            branch=b,
-            stock_status=Stock.StockStatus.AVAILABLE
-        ).count()
-
-        if available_stock_count <= threshold:
-            today = timezone.localtime(timezone.now()).date()
-            already_alerted = Notification.objects.filter(
-                branch=b,
-                notification_type=Notification.NotificationType.LOW_STOCK,
-                created_at__date=today
-            ).exists()
-
-            if not already_alerted:
-                Notification.objects.create(
-                    branch=b,
-                    title="⚠️ Low Stock Warning",
-                    message=f"Available stock for branch '{b.branch_name}' has fallen to {available_stock_count} units (Threshold: {threshold}).",
-                    notification_type=Notification.NotificationType.LOW_STOCK,
-                    is_read=False
-                )
 
 @login_required
 def notifications(request):
@@ -1967,97 +2060,599 @@ def reports(request):
     return render(request, 'yakuza/reports.html', context)
 
 
+
+def setup_unicode_fonts():
+    """
+    Checks if Unicode font exists in static/fonts/. 
+    If found, registers it; otherwise safely defaults to Helvetica.
+    """
+    font_name = 'Helvetica'
+    font_name_bold = 'Helvetica-Bold'
+
+    try:
+        base_dir = django_settings.BASE_DIR
+    except Exception:
+        from pathlib import Path
+        base_dir = Path(__file__).resolve().parent.parent
+
+    font_path = os.path.join(base_dir, 'static', 'fonts', 'DejaVuSans.ttf')
+    font_bold_path = os.path.join(base_dir, 'static', 'fonts', 'DejaVuSans-Bold.ttf')
+
+    if os.path.exists(font_path):
+        pdfmetrics.registerFont(TTFont('DejaVuSans', font_path))
+        font_name = 'DejaVuSans'
+
+    if os.path.exists(font_bold_path):
+        pdfmetrics.registerFont(TTFont('DejaVuSans-Bold', font_bold_path))
+        font_name_bold = 'DejaVuSans-Bold'
+
+    return font_name, font_name_bold
+
 @login_required
 def generate_reports_pdf(request):
-    user_branch = get_user_branch_context(request)
-    now = timezone.localtime(timezone.now())
-    today_date = now.date()
-    first_day_of_month = today_date.replace(day=1)
 
-    date_from_str = request.GET.get('date_from')
-    date_to_str = request.GET.get('date_to')
-    try:
-        date_from = datetime.strptime(date_from_str, '%Y-%m-%d').date() if date_from_str else first_day_of_month
-    except ValueError:
-        date_from = first_day_of_month
+    font_regular, font_bold = setup_unicode_fonts()
+
+    date_from_str = request.GET.get("date_from", "").strip()
+    date_to_str = request.GET.get("date_to", "").strip()
+
+    today = date.today()
 
     try:
-        date_to = datetime.strptime(date_to_str, '%Y-%m-%d').date() if date_to_str else today_date
+        start_date = (
+            datetime.strptime(date_from_str, "%Y-%m-%d").date()
+            if date_from_str
+            else today.replace(day=1)
+        )
     except ValueError:
-        date_to = today_date
+        start_date = today.replace(day=1)
 
-    sales_qs = Sales.objects.filter(invoice_date__gte=date_from, invoice_date__lte=date_to)
-    exp_qs = Expense.objects.filter(expense_date__gte=date_from, expense_date__lte=date_to)
-    
-    if user_branch:
-        sales_qs = sales_qs.filter(stock__branch=user_branch)
-        exp_qs = exp_qs.filter(branch=user_branch)
+    try:
+        end_date = (
+            datetime.strptime(date_to_str, "%Y-%m-%d").date()
+            if date_to_str
+            else today
+        )
+    except ValueError:
+        end_date = today
 
-    tot_sales = sales_qs.aggregate(t=Sum('grand_total'))['t'] or Decimal('0.00')
-    tot_cost = sales_qs.aggregate(t=Sum('stock__purchase_price'))['t'] or Decimal('0.00')
-    tot_exp = exp_qs.aggregate(t=Sum('amount'))['t'] or Decimal('0.00')
-    tot_profit = tot_sales - tot_cost - tot_exp
+    if start_date > end_date:
+        start_date, end_date = end_date, start_date
 
-    branch_name = user_branch.branch_name if user_branch else "All Branches"
-    generated_at = now.strftime("%d %b %Y, %I:%M %p")
+    branch = get_user_branch_context(request)
 
-    html_string = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="utf-8">
-        <style>
-            body {{ font-family: Helvetica, Arial, sans-serif; font-size: 12px; color: #172b4d; padding: 10px; }}
-            .header {{ text-align: center; margin-bottom: 20px; border-bottom: 2px solid #0052cc; padding-bottom: 10px; }}
-            .header h1 {{ color: #0052cc; margin: 0; font-size: 20px; text-transform: uppercase; }}
-            .header p {{ margin: 5px 0 0 0; font-size: 12px; color: #5e6c84; }}
-            .meta {{ margin-bottom: 20px; font-size: 11px; color: #6b778c; background: #f4f5f7; padding: 8px; border-radius: 4px; }}
-            .card-table {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; }}
-            .card-table td {{ padding: 12px; border: 1px solid #dfe1e6; background-color: #fafbfc; text-align: center; width: 33.33%; }}
-            .card-title {{ font-size: 10px; color: #6b778c; text-transform: uppercase; margin-bottom: 4px; font-weight: bold; }}
-            .card-amount {{ font-size: 15px; font-weight: bold; color: #0052cc; }}
-        </style>
-    </head>
-    <body>
-        <div class="header">
-            <h1>Business Performance Report</h1>
-            <p>Branch: {branch_name}</p>
-        </div>
-        
-        <div class="meta">
-            <strong>Date Range:</strong> {date_from} to {date_to} &nbsp;|&nbsp; 
-            <strong>Generated On:</strong> {generated_at}
-        </div>
+    sales_qs = Sales.objects.all()
+    purchase_item_qs = PurchaseItem.objects.all()
+    expense_qs = Expense.objects.all()
 
-        <table class="card-table">
-            <tr>
-                <td>
-                    <div class="card-title">Total Sales</div>
-                    <div class="card-amount">₹{tot_sales:,.2f}</div>
-                </td>
-                <td>
-                    <div class="card-title">Total Expense</div>
-                    <div class="card-amount">₹{tot_exp:,.2f}</div>
-                </td>
-                <td>
-                    <div class="card-title">Net Profit</div>
-                    <div class="card-amount">₹{tot_profit:,.2f}</div>
-                </td>
-            </tr>
-        </table>
-    </body>
-    </html>
-    """
+    if branch is not None:
+        sales_qs = sales_qs.filter(stock__branch=branch)
+        purchase_item_qs = purchase_item_qs.filter(purchase__branch=branch)
+        expense_qs = expense_qs.filter(branch=branch)
 
-    response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="Business_Report_{date_from}_to_{date_to}.pdf"'
-    
-    pisa_status = pisa.CreatePDF(html_string, dest=response)
-    if pisa_status.err:
-        return HttpResponse('Error creating PDF report', status=500)
+    sales_qs = sales_qs.filter(
+        invoice_date__gte=start_date,
+        invoice_date__lte=end_date,
+    )
+
+    purchase_item_qs = purchase_item_qs.filter(
+        purchase__purchase_date__gte=start_date,
+        purchase__purchase_date__lte=end_date,
+    )
+
+    expense_qs = expense_qs.filter(
+        expense_date__gte=start_date,
+        expense_date__lte=end_date,
+    )
+
+    sales_by_day = {}
+
+    sales_data = (
+        sales_qs
+        .values("invoice_date")
+        .annotate(total=Sum("grand_total"))
+    )
+
+    for item in sales_data:
+        sales_by_day[item["invoice_date"]] = (
+            item["total"] or Decimal("0.00")
+        )
+
+    purchases_by_day = {}
+
+    purchase_data = (
+        purchase_item_qs
+        .values("purchase__purchase_date")
+        .annotate(total=Sum("total_amount"))
+    )
+
+    for item in purchase_data:
+        purchases_by_day[item["purchase__purchase_date"]] = (
+            item["total"] or Decimal("0.00")
+        )
+
+    expenses_by_day = {}
+
+    expense_data = (
+        expense_qs
+        .values("expense_date")
+        .annotate(total=Sum("amount"))
+    )
+
+    for item in expense_data:
+        expenses_by_day[item["expense_date"]] = (
+            item["total"] or Decimal("0.00")
+        )
+
+    response = HttpResponse(
+        content_type="application/pdf"
+    )
+
+    filename = (
+        f"Report_{start_date.strftime('%d-%m-%Y')}_to_"
+        f"{end_date.strftime('%d-%m-%Y')}.pdf"
+    )
+
+    response["Content-Disposition"] = (
+        f'inline; filename="{filename}"'
+    )
+
+    doc = SimpleDocTemplate(
+        response,
+        pagesize=landscape(A4),
+        rightMargin=30,
+        leftMargin=30,
+        topMargin=30,
+        bottomMargin=30,
+    )
+
+    title_style = ParagraphStyle(
+        "DocTitle",
+        fontName=font_bold,
+        fontSize=16,
+        leading=20,
+        alignment=TA_CENTER,
+        textColor=colors.HexColor("#1E293B"),
+    )
+
+    subtitle_style = ParagraphStyle(
+        "DocSubtitle",
+        fontName=font_regular,
+        fontSize=10,
+        leading=14,
+        alignment=TA_CENTER,
+        textColor=colors.HexColor("#64748B"),
+    )
+
+    header_cell_style = ParagraphStyle(
+        "HeaderCell",
+        fontName=font_bold,
+        fontSize=9,
+        leading=11,
+        alignment=TA_CENTER,
+        textColor=colors.white,
+    )
+
+    month_header_style = ParagraphStyle(
+        "MonthHeaderCell",
+        fontName=font_bold,
+        fontSize=10,
+        leading=12,
+        alignment=TA_LEFT,
+        textColor=colors.HexColor("#0F172A"),
+    )
+
+    cell_style_left = ParagraphStyle(
+        "CellLeft",
+        fontName=font_regular,
+        fontSize=8,
+        leading=10,
+        alignment=TA_LEFT,
+    )
+
+    cell_style_right = ParagraphStyle(
+        "CellRight",
+        fontName=font_regular,
+        fontSize=8,
+        leading=10,
+        alignment=TA_RIGHT,
+    )
+
+    bold_cell_left = ParagraphStyle(
+        "BoldCellLeft",
+        fontName=font_bold,
+        fontSize=8,
+        leading=10,
+        alignment=TA_LEFT,
+    )
+
+    bold_cell_right = ParagraphStyle(
+        "BoldCellRight",
+        fontName=font_bold,
+        fontSize=8,
+        leading=10,
+        alignment=TA_RIGHT,
+    )
+
+    elements = []
+
+    branch_title = (
+        branch.branch_name
+        if branch
+        else "All Branches Summary"
+    )
+
+    elements.append(
+        Paragraph(
+            f"{branch_title} - Financial Report",
+            title_style,
+        )
+    )
+
+    elements.append(
+        Paragraph(
+            f"Period: {start_date.strftime('%d-%m-%Y')} "
+            f"to {end_date.strftime('%d-%m-%Y')}",
+            subtitle_style,
+        )
+    )
+
+    elements.append(Spacer(1, 15))
+
+    # ---------------------------------------------------------
+    # COLUMN ORDER:
+    # DATE → PURCHASE → SALES → EXPENSE → NET PROFIT
+    # ---------------------------------------------------------
+
+    table_data = [
+        [
+            Paragraph("Date", header_cell_style),
+            Paragraph("Purchase", header_cell_style),
+            Paragraph("Sales", header_cell_style),
+            Paragraph("Expense", header_cell_style),
+            Paragraph("Net Profit", header_cell_style),
+        ]
+    ]
+
+    current_date = start_date
+    current_month_key = None
+
+    m_purchase = Decimal("0.00")
+    m_sales = Decimal("0.00")
+    m_expense = Decimal("0.00")
+    m_profit = Decimal("0.00")
+
+    g_purchase = Decimal("0.00")
+    g_sales = Decimal("0.00")
+    g_expense = Decimal("0.00")
+    g_profit = Decimal("0.00")
+
+    style_commands = [
+        (
+            "BACKGROUND",
+            (0, 0),
+            (-1, 0),
+            colors.HexColor("#1E293B"),
+        ),
+        (
+            "ALIGN",
+            (0, 0),
+            (-1, -1),
+            "CENTER",
+        ),
+        (
+            "VALIGN",
+            (0, 0),
+            (-1, -1),
+            "MIDDLE",
+        ),
+        (
+            "BOTTOMPADDING",
+            (0, 0),
+            (-1, -1),
+            4,
+        ),
+        (
+            "TOPPADDING",
+            (0, 0),
+            (-1, -1),
+            4,
+        ),
+        (
+            "GRID",
+            (0, 0),
+            (-1, -1),
+            0.5,
+            colors.HexColor("#CBD5E1"),
+        ),
+    ]
+
+    row_idx = 1
+
+    while current_date <= end_date:
+
+        month_key = (
+            current_date.year,
+            current_date.month,
+        )
+
+        if current_month_key != month_key:
+
+            if current_month_key is not None:
+
+                month_name = calendar.month_name[
+                    current_month_key[1]
+                ].upper()
+
+                table_data.append(
+                    [
+                        Paragraph(
+                            f"{month_name} "
+                            f"{current_month_key[0]} TOTAL",
+                            bold_cell_left,
+                        ),
+                        Paragraph(
+                            f"RS. {format_indian_currency(m_purchase)}",
+                            bold_cell_right,
+                        ),
+                        Paragraph(
+                            f"RS. {format_indian_currency(m_sales)}",
+                            bold_cell_right,
+                        ),
+                        Paragraph(
+                            f"RS. {format_indian_currency(m_expense)}",
+                            bold_cell_right,
+                        ),
+                        Paragraph(
+                            f"RS. {format_indian_currency(m_profit)}",
+                            bold_cell_right,
+                        ),
+                    ]
+                )
+
+                style_commands.append(
+                    (
+                        "BACKGROUND",
+                        (0, row_idx),
+                        (-1, row_idx),
+                        colors.HexColor("#E2E8F0"),
+                    )
+                )
+
+                row_idx += 1
+
+                table_data.append(
+                    ["", "", "", "", ""]
+                )
+
+                style_commands.append(
+                    (
+                        "SPAN",
+                        (0, row_idx),
+                        (-1, row_idx),
+                    )
+                )
+
+                row_idx += 1
+
+                m_purchase = Decimal("0.00")
+                m_sales = Decimal("0.00")
+                m_expense = Decimal("0.00")
+                m_profit = Decimal("0.00")
+
+            current_month_key = month_key
+
+            month_name = calendar.month_name[
+                current_month_key[1]
+            ].upper()
+
+            table_data.append(
+                [
+                    Paragraph(
+                        f"{month_name} "
+                        f"{current_month_key[0]}",
+                        month_header_style,
+                    ),
+                    "",
+                    "",
+                    "",
+                    "",
+                ]
+            )
+
+            style_commands.append(
+                (
+                    "SPAN",
+                    (0, row_idx),
+                    (-1, row_idx),
+                )
+            )
+
+            style_commands.append(
+                (
+                    "BACKGROUND",
+                    (0, row_idx),
+                    (-1, row_idx),
+                    colors.HexColor("#F1F5F9"),
+                )
+            )
+
+            row_idx += 1
+
+        d_purchase = purchases_by_day.get(
+            current_date,
+            Decimal("0.00"),
+        )
+
+        d_sale = sales_by_day.get(
+            current_date,
+            Decimal("0.00"),
+        )
+
+        d_expense = expenses_by_day.get(
+            current_date,
+            Decimal("0.00"),
+        )
+
+        d_profit = (
+            d_sale
+            - d_purchase
+            - d_expense
+        )
+
+        m_purchase += d_purchase
+        m_sales += d_sale
+        m_expense += d_expense
+        m_profit += d_profit
+
+        g_purchase += d_purchase
+        g_sales += d_sale
+        g_expense += d_expense
+        g_profit += d_profit
+
+        table_data.append(
+            [
+                Paragraph(
+                    current_date.strftime("%d-%m-%Y"),
+                    cell_style_left,
+                ),
+                Paragraph(
+                    f"RS. {format_indian_currency(d_purchase)}",
+                    cell_style_right,
+                ),
+                Paragraph(
+                    f"RS. {format_indian_currency(d_sale)}",
+                    cell_style_right,
+                ),
+                Paragraph(
+                    f"RS. {format_indian_currency(d_expense)}",
+                    cell_style_right,
+                ),
+                Paragraph(
+                    f"RS. {format_indian_currency(d_profit)}",
+                    cell_style_right,
+                ),
+            ]
+        )
+
+        row_idx += 1
+        current_date += timedelta(days=1)
+
+    if current_month_key is not None:
+
+        month_name = calendar.month_name[
+            current_month_key[1]
+        ].upper()
+
+        table_data.append(
+            [
+                Paragraph(
+                    f"{month_name} "
+                    f"{current_month_key[0]} TOTAL",
+                    bold_cell_left,
+                ),
+                Paragraph(
+                    f"RS. {format_indian_currency(m_purchase)}",
+                    bold_cell_right,
+                ),
+                Paragraph(
+                    f"RS. {format_indian_currency(m_sales)}",
+                    bold_cell_right,
+                ),
+                Paragraph(
+                    f"RS. {format_indian_currency(m_expense)}",
+                    bold_cell_right,
+                ),
+                Paragraph(
+                    f"RS. {format_indian_currency(m_profit)}",
+                    bold_cell_right,
+                ),
+            ]
+        )
+
+        style_commands.append(
+            (
+                "BACKGROUND",
+                (0, row_idx),
+                (-1, row_idx),
+                colors.HexColor("#E2E8F0"),
+            )
+        )
+
+        row_idx += 1
+
+        table_data.append(
+            ["", "", "", "", ""]
+        )
+
+        style_commands.append(
+            (
+                "SPAN",
+                (0, row_idx),
+                (-1, row_idx),
+            )
+        )
+
+        row_idx += 1
+
+    table_data.append(
+        [
+            Paragraph(
+                "GRAND TOTAL",
+                bold_cell_left,
+            ),
+            Paragraph(
+                f"RS. {format_indian_currency(g_purchase)}",
+                bold_cell_right,
+            ),
+            Paragraph(
+                f"RS. {format_indian_currency(g_sales)}",
+                bold_cell_right,
+            ),
+            Paragraph(
+                f"RS. {format_indian_currency(g_expense)}",
+                bold_cell_right,
+            ),
+            Paragraph(
+                f"RS. {format_indian_currency(g_profit)}",
+                bold_cell_right,
+            ),
+        ]
+    )
+
+    style_commands.append(
+        (
+            "BACKGROUND",
+            (0, row_idx),
+            (-1, row_idx),
+            colors.HexColor("#CBD5E1"),
+        )
+    )
+
+    # Date column thodi nani, amount columns equal.
+    col_widths = [
+        110,
+        150,
+        150,
+        150,
+        150,
+    ]
+
+    report_table = Table(
+        table_data,
+        colWidths=col_widths,
+        repeatRows=1,
+    )
+
+    report_table.setStyle(
+        TableStyle(style_commands)
+    )
+
+    elements.append(report_table)
+
+    doc.build(elements)
+
     return response
-
-
 # ==========================================
 # SETTINGS & CONFIGURATIONS
 # ==========================================
