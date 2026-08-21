@@ -42,6 +42,7 @@ from django.db.models.functions import TruncMonth, TruncDay
 # REST Framework Imports
 from rest_framework import status, viewsets, permissions
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -286,11 +287,23 @@ class BranchViewSet(viewsets.ModelViewSet):
 
 
 class UserProfileViewSet(viewsets.ModelViewSet):
-    queryset = UserProfile.objects.all()
+    queryset = UserProfile.objects.all()  # Router ne basename shodhma help karva maate
     serializer_class = UserProfileSerializer
     permission_classes = [permissions.IsAuthenticated, IsSuperAdmin]
 
+    def get_queryset(self):
+        user = self.request.user
+        user_profile = getattr(user, 'userprofile', None)
 
+        if user.is_superuser or (user_profile and user_profile.role == UserProfile.RoleChoices.SUPER_ADMIN):
+            return UserProfile.objects.all()
+
+        user_branch = get_user_branch_context(self.request)
+        if user_branch:
+            return UserProfile.objects.filter(branch=user_branch)
+
+        return UserProfile.objects.none()
+    
 class SupplierViewSet(viewsets.ModelViewSet):
     serializer_class = SupplierSerializer
     permission_classes = [permissions.IsAuthenticated, IsBranchAdmin]
@@ -394,31 +407,38 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         serializer.save(**save_kwargs)
 
 
+# yakuza/views.py
+
 class StockViewSet(viewsets.ModelViewSet):
     serializer_class = StockSerializer
-    permission_classes = [permissions.IsAuthenticated, IsBranchScoped]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        branch = get_user_branch_context(self.request)
-        queryset = Stock.objects.select_related('company', 'model', 'color', 'branch').all()
+        queryset = Stock.objects.select_related('branch', 'model', 'color', 'company').all()
+        
+        # Frontend માંથી all_branches=true પેરામીટર આવે છે કે નહીં તે ચેક કરો
+        show_all = self.request.query_params.get('all_branches', 'false').lower() == 'true'
+        
+        # યુઝરની પ્રોફાઇલમાંથી બ્રાન્ચ મેળવો
+        user_profile = getattr(self.request.user, 'userprofile', None)
+        user_branch = user_profile.branch if user_profile else None
+        
+        # જો superuser કે super_admin ન હોય અને all_branches=true ન મોકલ્યું હોય, તો જ કરન્ટ બ્રાન્ચ ફિલ્ટર કરો
+        is_super_admin = self.request.user.is_superuser or (user_profile and user_profile.role == 'SUPER_ADMIN')
 
-        if branch is not None:
-            queryset = queryset.filter(branch=branch)
-
-        status_param = self.request.query_params.get('status')
-        if status_param:
-            queryset = queryset.filter(stock_status=status_param)
+        if not show_all and not is_super_admin and user_branch is not None:
+            queryset = queryset.filter(branch=user_branch)
+            
+        # સર્ચ કરવા માટેનું લોજિક
+        search_query = self.request.query_params.get('search', None) or self.request.query_params.get('q', None)
+        if search_query:
+            queryset = queryset.filter(
+                Q(model__model_name__icontains=search_query) |
+                Q(color__color_name__icontains=search_query) |
+                Q(chassis_number__icontains=search_query)
+            )
 
         return queryset
-
-    def perform_update(self, serializer):
-        branch = get_user_branch_context(self.request)
-        instance = serializer.instance
-        if branch is not None and instance.branch != branch:
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("You do not have permission to modify stock from another branch.")
-        serializer.save()
-
 
 class SalesViewSet(viewsets.ModelViewSet):
     serializer_class = SalesSerializer
@@ -525,7 +545,6 @@ class SettingsViewSet(viewsets.ModelViewSet):
     def get_object(self):
         return Settings.load()
 
-
 class ProfitReportView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsBranchAdmin]
 
@@ -547,10 +566,6 @@ class ProfitReportView(APIView):
         if end_date:
             sales_qs = sales_qs.filter(invoice_date__lte=end_date)
 
-        total_sales = sales_qs.aggregate(total=Sum('grand_total'))['total'] or Decimal('0.00')
-        total_purchase_cost = sales_qs.aggregate(cost=Sum('stock__purchase_price'))['cost'] or Decimal('0.00')
-        gross_profit = total_sales - total_purchase_cost
-
         expenses_qs = Expense.objects.all()
         if branch is not None:
             expenses_qs = expenses_qs.filter(branch=branch)
@@ -562,8 +577,17 @@ class ProfitReportView(APIView):
         if end_date:
             expenses_qs = expenses_qs.filter(expense_date__lte=end_date)
 
+        total_sales = sales_qs.aggregate(total=Sum('grand_total'))['total'] or Decimal('0.00')
+        
+        # Calculate purchase cost directly from sold stock attached to filtered sales
+        total_purchase_cost = sales_qs.aggregate(total=Sum('stock__purchase_price'))['total'] or Decimal('0.00')
         total_expenses = expenses_qs.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+
+        gross_profit = total_sales - total_purchase_cost
         net_profit = gross_profit - total_expenses
+
+        # Safe Margin Calculation
+        profit_margin = (net_profit / total_sales * 100) if total_sales > 0 else Decimal('0.00')
 
         report_data = {
             'total_sales': total_sales,
@@ -571,12 +595,12 @@ class ProfitReportView(APIView):
             'gross_profit': gross_profit,
             'total_expenses': total_expenses,
             'net_profit': net_profit,
+            'profit_margin': profit_margin,
             'units_sold': sales_qs.count()
         }
 
         serializer = ProfitReportSerializer(report_data)
         return Response(serializer.data)
-
 
 # ==========================================
 # AUTH & DASHBOARD VIEWS
@@ -709,21 +733,24 @@ def dashboard(request):
     if branch is not None:
         purchase_item_qs = purchase_item_qs.filter(purchase__branch=branch)
 
-    total_purchases_val = purchase_item_qs.aggregate(total=Sum('total_amount'))['total'] or Decimal('0.00')
+    total_purchase_val = purchase_item_qs.aggregate(
+    total=Sum('subtotal')
+)['total'] or Decimal('0.00')
+
 
     sold_stock_qs = stock_qs.filter(stock_status=Stock.StockStatus.SOLD)
     sold_cost = sold_stock_qs.aggregate(total=Sum('purchase_price'))['total'] or Decimal('0.00')
     total_profit_val = total_sales_val - sold_cost
 
-    if total_sales_val > Decimal('0.00'):
-        profit_margin_val = round((total_profit_val / total_sales_val) * Decimal('100.00'), 1)
-        profit_margin_formatted = f"{int(profit_margin_val)}%" if profit_margin_val == int(profit_margin_val) else f"{profit_margin_val:.1f}%"
+    # Safe Profit Margin Calculation
+    if total_sales_val > 0:
+        profit_margin_val = (total_profit_val / total_sales_val) * Decimal('100')
     else:
-        profit_margin_formatted = "0%"
+        profit_margin_val = Decimal('0.00')
 
     total_vehicles_formatted = format_display_number(total_vehicles_count)
     total_sales_formatted = format_indian_currency(total_sales_val)
-    total_purchases_formatted = format_indian_currency(total_purchases_val)
+    total_purchases_formatted = format_indian_currency(total_purchase_val)
     total_profit_formatted = format_indian_currency(total_profit_val)
 
     now = timezone.now()
@@ -786,7 +813,8 @@ def dashboard(request):
         
     recent_purchases = purchases_qs.select_related('supplier').order_by('-id')[:5]
     for pur in recent_purchases:
-        pur.computed_total = pur.items.aggregate(total=Sum('total_amount'))['total'] or Decimal('0.00')
+        
+        pur.computed_total = pur.items.aggregate(total=Sum('subtotal'))['total'] or Decimal('0.00')
 
     edit_id = request.GET.get('edit_id')
     edit_sale = Sales.objects.filter(id=edit_id).first() if edit_id else None
@@ -808,7 +836,7 @@ def dashboard(request):
         'total_sales': total_sales_formatted,
         'total_purchases': total_purchases_formatted,
         'total_profit': total_profit_formatted,
-        'profit_margin': profit_margin_formatted,
+        'profit_margin': profit_margin_val,
         'sales_chart_labels': json.dumps(chart_labels),
         'sales_chart_data': json.dumps(chart_data),
         'stock_model_labels': json.dumps(stock_model_labels),
@@ -1152,7 +1180,7 @@ def repair_missing_stock():
     print(f"Total Repaired Stock Rows: {created_count}")
 
 
-repair_missing_stock()
+#repair_missing_stock()
 
 @login_required
 @require_POST
@@ -1296,7 +1324,8 @@ def purchase_history(request):
 
     for purchase in purchases:
         purchase.computed_qty = sum(item.quantity for item in purchase.items.all())
-        purchase.computed_total = sum(item.total_amount for item in purchase.items.all())
+       
+        purchase.computed_total = sum(item.subtotal for item in purchase.items.all())
 
     return render(request, 'yakuza/purchase_history.html', {'purchases': purchases})
 
@@ -1329,7 +1358,6 @@ def sales(request):
             motor_number = request.POST.get('motor_number', '').strip()
             controller_number = request.POST.get('controller_number', '').strip()
             payment_type = request.POST.get('payment_type', 'CASH')
-            discount_val = Decimal(request.POST.get('discount', '0') or '0')
 
             if not customer_name or not contact_number or not model_name or price_val <= 0 or not chassis_number:
                 return JsonResponse({'status': 'error', 'message': 'Please fill all required fields correctly.'}, status=400)
@@ -1410,7 +1438,6 @@ def sales(request):
                 sale.aadhar_number = aadhar_number
                 sale.payment_method = payment_method
                 sale.selling_price = price_val
-                sale.discount = discount_val
                 sale.stock = stock_obj
                 sale.save()
                
@@ -1430,7 +1457,6 @@ def sales(request):
                     invoice_no=auto_inv,
                     payment_method=payment_method,
                     selling_price=price_val,
-                    discount=discount_val,
                     created_by=request.user
                 )
                          
@@ -1488,8 +1514,7 @@ def sales(request):
                 'price': f"{price_val:.2f}",
                 'sgst': f"{getattr(sale, 'sgst', 0):.2f}",
                 'cgst': f"{getattr(sale, 'cgst', 0):.2f}",
-                'discount': f"{discount_val:.2f}",
-                'grand_total': f"{getattr(sale, 'grand_total', price_val - discount_val):.2f}",
+                'grand_total': f"{getattr(sale, 'grand_total'):.2f}",
                 'chassis_number': stock_obj.chassis_number,
                 'battery_number': stock_obj.battery_number or '',
                 'motor_number': stock_obj.motor_number or '',
@@ -1754,7 +1779,6 @@ def get_customer_invoice_ajax(request, sale_id):
             "subtotal": f"{sale.subtotal:.2f}",
             "cgst": f"{sale.cgst:.2f}",
             "sgst": f"{sale.sgst:.2f}",
-            "discount": f"{sale.discount:.2f}",
             "grand_total": f"{sale.grand_total:.2f}",
             "branch_name": branch_obj.branch_name if branch_obj else "Main Branch",
             "branch_address": branch_obj.address if branch_obj else "",
@@ -1916,6 +1940,7 @@ def notifications(request):
         'notifications': notifications_qs.order_by('-created_at')
     })
 
+    
 @login_required
 def reports(request):
     user_branch = get_user_branch_context(request)
@@ -1956,7 +1981,7 @@ def reports(request):
     monthly_sales = curr_month_sales_qs.aggregate(total=Sum('grand_total'))['total'] or Decimal('0.00')
 
     curr_month_purchase_qs = purchase_item_base.filter(purchase__purchase_date__gte=first_day_of_month, purchase__purchase_date__lte=today_date)
-    monthly_purchase = curr_month_purchase_qs.aggregate(total=Sum('total_amount'))['total'] or Decimal('0.00')
+    monthly_purchase = curr_month_purchase_qs.aggregate(total=Sum('subtotal'))['total'] or Decimal('0.00')
 
     curr_month_expense_qs = expense_base.filter(expense_date__gte=first_day_of_month, expense_date__lte=today_date)
     monthly_expense = curr_month_expense_qs.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
@@ -1988,7 +2013,7 @@ def reports(request):
     while curr_dt <= date_to:
         sp_labels.append(curr_dt.strftime('%b %d'))
         d_sales = filtered_sales.filter(invoice_date=curr_dt).aggregate(t=Sum('grand_total'))['t'] or Decimal('0.00')
-        d_purchases = filtered_purchases.filter(purchase__purchase_date=curr_dt).aggregate(t=Sum('total_amount'))['t'] or Decimal('0.00')
+        d_purchases = filtered_purchases.filter(purchase__purchase_date=curr_dt).aggregate(t=Sum('subtotal'))['t'] or Decimal('0.00')
         sp_sales_data.append(float(d_sales))
         sp_purchase_data.append(float(d_purchases))
         curr_dt += timedelta(days=1)
@@ -2160,11 +2185,7 @@ def generate_reports_pdf(request):
 
     purchases_by_day = {}
 
-    purchase_data = (
-        purchase_item_qs
-        .values("purchase__purchase_date")
-        .annotate(total=Sum("total_amount"))
-    )
+    purchase_data = (purchase_item_qs.values("purchase__purchase_date").annotate(total=Sum("subtotal")))
 
     for item in purchase_data:
         purchases_by_day[item["purchase__purchase_date"]] = (
@@ -2193,9 +2214,7 @@ def generate_reports_pdf(request):
         f"{end_date.strftime('%d-%m-%Y')}.pdf"
     )
 
-    response["Content-Disposition"] = (
-        f'inline; filename="{filename}"'
-    )
+    response['Content-Disposition'] = 'inline; filename="invoice.pdf"'
 
     doc = SimpleDocTemplate(
         response,
@@ -2658,59 +2677,58 @@ def generate_reports_pdf(request):
 # ==========================================
 @login_required
 def settings(request):
-    user = request.user
-    user_profile, _ = UserProfile.objects.get_or_create(user=user)
+    current_branch = get_user_branch_context(request)
+    user_profile = getattr(request.user, 'userprofile', None)
+    branches = Branch.objects.all()
     
-    # Get active branch context
-    branch_context = get_user_branch_context(request)
-    
-    # -------------------------------------------------------------
-    # STRICT USER MANAGEMENT LIST RULE:
-    # 1. UserProfile.branch == current branch
-    # 2. UserProfile.role == BRANCH_ADMIN
-    # 3. Super User (is_superuser=True) & other roles/branches excluded at DB level
-    # -------------------------------------------------------------
-    if branch_context:
-        users_qs = User.objects.filter(
-            is_superuser=False,
-            userprofile__branch=branch_context,
-            userprofile__role=UserProfile.RoleChoices.BRANCH_ADMIN
-        ).select_related('userprofile', 'userprofile__branch')
-    else:
-        users_qs = User.objects.none()
+    # Group live stock data branch-wise: Only AVAILABLE Stock
+    branch_stock_data = []
+    for branch in branches:
+        items = Stock.objects.filter(
+            branch=branch,
+            stock_status=Stock.StockStatus.AVAILABLE
+        ).values(
+            model_name=F('model__model_name'),
+            color_name=F('color__color_name')
+        ).annotate(quantity=Count('id'))
+        
+        total_quantity = sum(item['quantity'] for item in items)
+        
+        branch_stock_data.append({
+            'branch': branch,
+            'items': items,
+            'total_quantity': total_quantity
+        })
 
-    settings_obj = Settings.load()
-    is_super = (user_profile.role == UserProfile.RoleChoices.SUPER_ADMIN) or user.is_superuser
-    current_branch = branch_context if is_super else user_profile.branch
-    
-    if current_branch:
-        invoice_settings, _ = InvoiceSetting.objects.get_or_create(branch=current_branch)
+    if request.user.is_superuser or (user_profile and user_profile.role == UserProfile.RoleChoices.SUPER_ADMIN):
+        # Super Admin sees ALL users
+        users_list = User.objects.select_related('userprofile', 'userprofile__branch').all()
+    elif current_branch:
+        # Branch Admin / Regular user sees ONLY users from their branch
+        users_list = User.objects.select_related('userprofile', 'userprofile__branch').filter(
+            userprofile__branch=current_branch
+        )
     else:
-        invoice_settings = InvoiceSetting.objects.first()
+        # Fallback if no branch assigned
+        users_list = User.objects.none()
 
-    # Audit logs are matched by the branch recorded on the log entry itself
-    # (branch at the time of the action), not the user's current branch.
-    if branch_context:
-        audit_logs = AuditLog.objects.filter(
-            branch=branch_context
-        ).select_related('user', 'branch').order_by('-timestamp')[:100]
-    else:
-        audit_logs = AuditLog.objects.none()
+    # Other settings context
+    invoice_settings = InvoiceSetting.objects.filter(branch=current_branch).first() if current_branch else InvoiceSetting.objects.first()
+    settings_obj = Settings.objects.first()
+    audit_logs = AuditLog.objects.select_related('user').order_by('-timestamp')[:50]
+    last_backup = BackupHistory.objects.order_by('-created_at').first()
 
     context = {
-        'user_profile': user_profile,
         'current_branch': current_branch,
-        'settings_obj': settings_obj,
+        'user_profile': user_profile,
+        'users_list': users_list,
         'invoice_settings': invoice_settings,
-        'users_list': users_qs.order_by('-id'),
-        'all_branches': Branch.objects.filter(is_active=True),
+        'settings_obj': settings_obj,
         'audit_logs': audit_logs,
-        'last_backup': BackupHistory.objects.order_by('-created_at').first(),
+        'last_backup': last_backup,
+        'branch_stock_data': branch_stock_data,
     }
-
     return render(request, 'yakuza/settings.html', context)
-
-from django.views.decorators.csrf import csrf_protect
 
 @login_required
 @csrf_protect
@@ -3288,7 +3306,7 @@ def restore_backup(request):
                 item['branch_id'] = branch.id
                 
                 # Clean/safe decimal fields if present
-                for dec_key in ['total_amount', 'paid_amount', 'balance_amount', 'discount']:
+                for dec_key in ['total_amount', 'paid_amount', 'balance_amount']:
                     if dec_key in item:
                         item[dec_key] = safe_decimal(item[dec_key])
 
@@ -3350,7 +3368,7 @@ def restore_backup(request):
                     item['created_by_id'] = request.user.id
                 item['stock_id'] = new_stock.id
 
-                for dec_key in ['selling_price', 'discount', 'total_amount', 'paid_amount', 'balance_amount']:
+                for dec_key in ['selling_price', 'total_amount', 'paid_amount', 'balance_amount']:
                     if dec_key in item:
                         item[dec_key] = safe_decimal(item[dec_key])
 

@@ -10,7 +10,7 @@ app_name = 'yakuza'
 
 router = DefaultRouter()
 router.register(r'branches', views.BranchViewSet)
-router.register(r'profiles', views.UserProfileViewSet)
+router.register(r'profiles', views.UserProfileViewSet, basename='userprofile')
 router.register(r'suppliers', views.SupplierViewSet, basename='supplier')
 router.register(r'vehicle-colors', views.VehicleColorViewSet, basename='vehiclecolor')
 router.register(r'vehicle-models', views.VehicleModelViewSet, basename='vehiclemodel')

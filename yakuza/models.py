@@ -132,17 +132,20 @@ class PurchaseItem(models.Model):
     total_amount = models.DecimalField(max_digits=12, decimal_places=2, editable=False)
 
     def save(self, *args, **kwargs):
-        # Quantity ne integer ma convert karo, ane price/subtotal ne Decimal ma
-        qty = int(self.quantity) if self.quantity else 0
-        p_price = Decimal(str(self.purchase_price)) if self.purchase_price else Decimal('0.00')
-        
-        self.subtotal = qty * p_price
-        self.cgst_amount = self.subtotal * Decimal('0.09')
-        self.sgst_amount = self.subtotal * Decimal('0.09')
-        self.total_amount = self.subtotal + self.cgst_amount + self.sgst_amount
-        
+    
+        gross_total = (
+            Decimal(str(self.quantity)) *
+            Decimal(str(self.purchase_price))
+        ).quantize(Decimal('0.01'))
+
+        self.subtotal = gross_total
+        self.total_amount = gross_total
+
+        self.cgst_amount = Decimal('0.00')
+        self.sgst_amount = Decimal('0.00')
+
         super().save(*args, **kwargs)
-        
+            
     def __str__(self):
         return f"{self.quantity} x {self.model.model_name} ({self.color.color_name})"
 

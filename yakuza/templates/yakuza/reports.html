@@ -189,6 +189,16 @@
     </section>
 
 </div>
+<!-- reports.html ma Filter section paase aa button code mukavo -->
+<div class="d-flex gap-2">
+    <button type="button" id="exportPdfBtn" class="btn btn-danger">
+        <i class="fas fa-file-pdf"></i> Export PDF
+    </button>
+    <button type="button" id="printReportBtn" class="btn btn-secondary">
+        <i class="fas fa-print"></i> Print
+    </button>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -197,5 +207,8 @@
     window.chartData = JSON.parse('{{ chart_data_json|escapejs }}');
     window.pdfUrl = "{% url 'yakuza:generate_reports_pdf' %}";
 </script>
+
+
+
 <script src="{% static 'js/reports.js' %}"></script>
 {% endblock %}

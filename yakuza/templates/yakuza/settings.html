@@ -36,6 +36,12 @@ Settings
                     </button>
                 </li>
                 <li role="presentation">
+                    <button class="erp-nav-item" data-target="section-stock" role="tab" aria-selected="false">
+                        <svg class="erp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                        <span>Stock Management</span>
+                    </button>
+                </li>
+                <li role="presentation">
                     <button class="erp-nav-item" data-target="section-users" role="tab" aria-selected="false">
                         <svg class="erp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 21v-2a4 4 0 0 0-3-3.85"/><path d="M9 21v-2a4 4 0 0 0-4-4H4a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
                         <span>User Management</span>
@@ -192,6 +198,52 @@ Settings
                                 <button type="submit" class="erp-btn erp-btn-primary">Update Branch</button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION: STOCK MANAGEMENT -->
+            <section id="section-stock" class="erp-section" role="tabpanel">
+                <div class="erp-card">
+                    <div class="erp-card-header erp-header-flex">
+                        <div>
+                            <h3>Stock Management</h3>
+                            <p>Live branch-wise inventory summary and global model filter.</p>
+                        </div>
+                        <div class="erp-search-box" style="max-width: 300px;">
+                            <input type="text" id="stock-global-search" class="erp-input" placeholder="Search vehicle model..." autocomplete="off">
+                        </div>
+                    </div>
+                    <div class="erp-card-body">
+                        <div class="erp-stock-grid" id="stock-branches-container">
+                            {% for bdata in branch_stock_data %}
+                            <div class="erp-stock-card" data-branch-id="{{ bdata.branch.id }}">
+                                <div class="erp-stock-card-header">
+                                    <h4>{{ bdata.branch.branch_name }}</h4>
+                                    <span class="erp-badge erp-badge-success">{{ bdata.total_quantity }} Units</span>
+                                </div>
+                                <div class="erp-stock-card-body">
+                                    {% if bdata.items %}
+                                        <ul class="erp-stock-list">
+                                            {% for item in bdata.items %}
+                                            <li class="erp-stock-item" data-model="{{ item.model_name|lower }}">
+                                                <span class="erp-stock-model-color"><strong>{{ item.model_name }}</strong> — {{ item.color_name }}</span>
+                                                <span class="erp-stock-qty">{{ item.quantity }}</span>
+                                            </li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% else %}
+                                        <p class="text-muted text-center py-2" style="font-size:0.8rem; margin:0;">No active stock available.</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% empty %}
+                            <p class="text-muted text-center py-4">No branches found.</p>
+                            {% endfor %}
+                        </div>
+                        <div id="stock-no-results" class="text-muted text-center py-4" style="display: none; font-size: 0.85rem;">
+                            No matching stock items found for your search query.
+                        </div>
                     </div>
                 </div>
             </section>
@@ -513,8 +565,6 @@ Settings
         </form>
     </div>
 </div>
-
-
 
 <!-- Restore Backup Confirmation Modal -->
 <div class="erp-modal-backdrop" id="modal-confirm-restore" hidden>

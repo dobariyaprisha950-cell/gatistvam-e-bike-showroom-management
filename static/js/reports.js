@@ -8,7 +8,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     /**
      * Helper function to dynamically scale X-Axis ticks based on date range length
-     * keeps all daily data points intact while optimizing visual label density.
      */
     function getResponsiveXAxisTicks(labelsArray) {
         const count = labelsArray ? labelsArray.length : 0;
@@ -68,7 +67,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // 2. Expense Distribution Donut Chart (Unchanged)
+    // 2. Expense Distribution Donut Chart
     const ctxExpense = document.getElementById('expenseChart');
     if (ctxExpense) {
         if (chartData.expenseValues && chartData.expenseValues.length > 0) {
@@ -139,14 +138,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // PDF Export Event Handler
+    // PDF Export Event Handler - Updated to open in new tab
     const exportPdfBtn = document.getElementById('exportPdfBtn');
     if (exportPdfBtn) {
         exportPdfBtn.addEventListener('click', function() {
             const dateFrom = document.getElementById('dateFrom') ? document.getElementById('dateFrom').value : '';
             const dateTo = document.getElementById('dateTo') ? document.getElementById('dateTo').value : '';
             const pdfUrl = `${window.pdfUrl || '/yakuza/reports/pdf/'}?date_from=${dateFrom}&date_to=${dateTo}`;
-            window.location.href = pdfUrl;
+            window.open(pdfUrl, '_blank');
         });
     }
 

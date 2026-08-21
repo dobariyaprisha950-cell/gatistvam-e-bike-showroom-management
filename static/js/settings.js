@@ -249,6 +249,8 @@ document.addEventListener('DOMContentLoaded', function () {
             hash = 'section-profile';
         } else if (hash === 'branch') {
             hash = 'section-branch';
+        } else if (hash === 'stock' || hash === 'stock-management') {
+            hash = 'section-stock';
         } else if (hash === 'users' || hash === 'user-management') {
             hash = 'section-users';
         } else if (hash === 'invoice') {
@@ -268,6 +270,49 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     loadInitialTab();
+
+    // ==========================================
+    // STOCK MANAGEMENT REAL-TIME GLOBAL SEARCH (ALL BRANCHES)
+    // ==========================================
+    const stockSearchInput = document.getElementById('stock-global-search');
+    if (stockSearchInput) {
+        stockSearchInput.addEventListener('input', function () {
+            const query = this.value.toLowerCase().trim();
+            const branchCards = document.querySelectorAll('.erp-stock-card');
+            let visibleBranchCount = 0;
+
+            branchCards.forEach(card => {
+                const stockItems = card.querySelectorAll('.erp-stock-item');
+                const branchTitle = card.querySelector('.erp-stock-card-header, h3, h4')?.textContent.toLowerCase() || '';
+                let matchInBranch = false;
+
+                // Check if search query matches the Branch Name directly
+                const isBranchMatch = branchTitle.includes(query);
+
+                stockItems.forEach(item => {
+                    const modelName = (item.getAttribute('data-model') || item.textContent).toLowerCase();
+                    if (query === '' || isBranchMatch || modelName.includes(query)) {
+                        item.style.display = 'flex';
+                        matchInBranch = true;
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+
+                if (matchInBranch || query === '' || isBranchMatch) {
+                    card.style.display = 'flex';
+                    visibleBranchCount++;
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+
+            const noResultsMsg = document.getElementById('stock-no-results');
+            if (noResultsMsg) {
+                noResultsMsg.style.display = (visibleBranchCount === 0) ? 'block' : 'none';
+            }
+        });
+    }
 
     // ==========================================
     // 3. PASSWORD SHOW / HIDE TOGGLE
@@ -365,13 +410,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (document.getElementById('curr_password')) document.getElementById('curr_password').value = '';
                     if (document.getElementById('new_password')) document.getElementById('new_password').value = '';
                     if (document.getElementById('confirm_password')) document.getElementById('confirm_password').value = '';
-                    // The photo <input type="file"> is never cleared by the
-                    // browser on an AJAX submit (only a native form submit /
-                    // page reload does that). Without resetting it here,
-                    // isProfileFormDirty() keeps seeing a selected file and
-                    // treats the form as dirty forever after a successful
-                    // save, popping the "unsaved changes" modal on every
-                    // later tab switch even though nothing is unsaved.
+                    
                     const profilePhotoInput = document.getElementById('profile_photo');
                     if (profilePhotoInput) profilePhotoInput.value = '';
 
@@ -485,56 +524,52 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     const formUserModal = document.getElementById('form-user-modal');
 
-if (formUserModal) {
-    formUserModal.addEventListener('submit', async function (event) {
-        event.preventDefault();
+    if (formUserModal) {
+        formUserModal.addEventListener('submit', async function (event) {
+            event.preventDefault();
 
-        const password = document.getElementById('u_password')?.value || '';
-        const confirmPassword = document.getElementById('u_confirm_password')?.value || '';
+            const password = document.getElementById('u_password')?.value || '';
+            const confirmPassword = document.getElementById('u_confirm_password')?.value || '';
 
-        if (password !== confirmPassword) {
-            alert('Password and Confirm Password must match.');
-            return;
-        }
-
-        const formData = new FormData(formUserModal);
-
-        try {
-            const response = await fetch('/settings/save-user/', {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            });
-
-            const data = await response.json();
-
-            if (!response.ok || data.status !== 'success') {
-                alert(data.message || 'Unable to create Super Admin.');
+            if (password !== confirmPassword) {
+                alert('Password and Confirm Password must match.');
                 return;
             }
 
-            alert(data.message || 'Super User added successfully!');
+            const formData = new FormData(formUserModal);
 
-            formUserModal.reset();
+            try {
+                const response = await fetch('/settings/save-user/', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
 
-            if (typeof hideModal === 'function' && modalUser) {
-                hideModal(modalUser);
-            } else if (modalUser) {
-                modalUser.hidden = true;
+                const data = await response.json();
+
+                if (!response.ok || data.status !== 'success') {
+                    alert(data.message || 'Unable to create Super Admin.');
+                    return;
+                }
+
+                alert(data.message || 'Super User added successfully!');
+
+                formUserModal.reset();
+
+                if (typeof hideModal === 'function' && modalUser) {
+                    hideModal(modalUser);
+                } else if (modalUser) {
+                    modalUser.hidden = true;
+                }
+
+            } catch (error) {
+                console.error('Super Admin creation error:', error);
+                alert('Something went wrong while creating Super Admin.');
             }
-
-        } catch (error) {
-            console.error('Super Admin creation error:', error);
-            alert('Something went wrong while creating Super Admin.');
-        }
-    });
-}
-// ==========================================
-// 7. AUDIT LOG INTERACTION
-// ==========================================
-
+        });
+    }
 
     // ==========================================
     // 8. BACKUP & RESTORE
