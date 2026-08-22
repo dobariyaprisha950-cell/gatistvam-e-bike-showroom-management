@@ -27,13 +27,13 @@ Gatistvam E-Bike is a full-stack web application currently under development. Th
 
 ## 📌 Current Status
 
-The project is approximately **85% complete** and is currently under active development.
+The project is complete and ready for deployment.
 
-The remaining work includes connecting and completing parts of the sales, customer history and purchase history workflows.
+The remaining step is to deploy the application as a web service and make it publicly accessible.
 
 ## 🎯 Project Goal
 
-The goal is to build a practical software solution that helps an E-vehicle showroom manage its business operations through a centralized system.
+The goal is to provide a practical, centralized software solution for managing day-to-day E-vehicle showroom operations efficiently.
 
 ## 👩‍💻 Developer
 
