@@ -4,7 +4,7 @@ A real-world showroom management system designed for an E-vehicle business to ma
 
 ## 🚀 Project Overview
 
-Gatistvam E-Bike is a full-stack web application currently under development. The system is designed around real business workflows such as inventory management, sales, purchases, customer records, expenses and notifications.
+Gatistvam E-Bike is a completed full-stack web application designed around real-world business workflows such as inventory management, sales, purchases, customer records, expenses and notifications.
 
 ## ✨ Key Features
 
@@ -23,7 +23,7 @@ Gatistvam E-Bike is a full-stack web application currently under development. Th
 - **Backend:** Python, Django
 - **Frontend:** HTML, CSS, JavaScript
 - **Database:** SQLite3
-- **Deployment:** Render (in progress)
+- **Deployment:** Render 
 
 ## 📌 Current Status
 
