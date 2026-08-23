@@ -18,6 +18,12 @@ ALLOWED_HOSTS = [
     '127.0.0.1',
     'localhost',
     'yakuza-showroom-management.onrender.com',
+    'gatistvamelectric.cloud',
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    'https://gatistvamelectric.cloud',
+    'https://www.gatistvamelectric.cloud',
 ]
 
 render_hostname = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
