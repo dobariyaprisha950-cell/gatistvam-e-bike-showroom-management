@@ -2701,22 +2701,13 @@ def settings(request):
         })
 
     if request.user.is_superuser or (user_profile and user_profile.role == UserProfile.RoleChoices.SUPER_ADMIN):
-    # Super Admin sees all NORMAL users, but NOT Django superusers
-         users_list = User.objects.select_related(
-            'userprofile',
-            'userprofile__branch'
-        ).filter(is_superuser=False)
-
+        # Super Admin sees ALL users
+        users_list = User.objects.select_related('userprofile', 'userprofile__branch').all()
     elif current_branch:
         # Branch Admin / Regular user sees ONLY users from their branch
-        users_list = User.objects.select_related(
-            'userprofile',
-            'userprofile__branch'
-        ).filter(
-            userprofile__branch=current_branch,
-            is_superuser=False
+        users_list = User.objects.select_related('userprofile', 'userprofile__branch').filter(
+            userprofile__branch=current_branch
         )
-
     else:
         # Fallback if no branch assigned
         users_list = User.objects.none()
