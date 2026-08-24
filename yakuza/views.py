@@ -2702,24 +2702,24 @@ def settings(request):
 
     if request.user.is_superuser or (user_profile and user_profile.role == UserProfile.RoleChoices.SUPER_ADMIN):
     # Super Admin sees all NORMAL users, but NOT Django superusers
-    users_list = User.objects.select_related(
-        'userprofile',
-        'userprofile__branch'
-    ).filter(is_superuser=False)
+         users_list = User.objects.select_related(
+            'userprofile',
+            'userprofile__branch'
+        ).filter(is_superuser=False)
 
-elif current_branch:
-    # Branch Admin / Regular user sees ONLY users from their branch
-    users_list = User.objects.select_related(
-        'userprofile',
-        'userprofile__branch'
-    ).filter(
-        userprofile__branch=current_branch,
-        is_superuser=False
-    )
+    elif current_branch:
+        # Branch Admin / Regular user sees ONLY users from their branch
+        users_list = User.objects.select_related(
+            'userprofile',
+            'userprofile__branch'
+        ).filter(
+            userprofile__branch=current_branch,
+            is_superuser=False
+        )
 
-else:
-    # Fallback if no branch assigned
-    users_list = User.objects.none()
+    else:
+        # Fallback if no branch assigned
+        users_list = User.objects.none()
 
     # Other settings context
     invoice_settings = InvoiceSetting.objects.filter(branch=current_branch).first() if current_branch else InvoiceSetting.objects.first()
