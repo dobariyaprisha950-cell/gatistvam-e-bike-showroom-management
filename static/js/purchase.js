@@ -79,14 +79,20 @@ document.addEventListener('DOMContentLoaded', function () {
     // Temporary working array inside Color Allocation Modal
     let currentModalColorRows = [];
 
+    // Master Data Edit state (Vehicle Model / Vehicle Color rename)
+    let editingModelId = null;
+    let editingColorId = null;
+
     // ==========================================
     // DOM ELEMENTS
     // ==========================================
+    const purchaseForm = document.getElementById('purchaseForm');
     const supplierSelect = document.getElementById('id_supplier');
     const invoiceNumberInput = document.getElementById('id_invoice_number');
     const invoiceDateInput = document.getElementById('id_invoice_date');
 
     const entryModelSelect = document.getElementById('entry_model');
+    const btnEditModelName = document.getElementById('btnEditModelName');
     const entryQuantityInput = document.getElementById('entry_quantity');
     const entryUnitPriceInput = document.getElementById('entry_unit_price');
     const btnAddVehicleRow = document.getElementById('btnAddVehicleRow');
@@ -139,6 +145,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         renderVehicleTable();
         updateSummary();
+        syncHiddenJson();
     }
 
     function loadEmbeddedJsonData() {
@@ -165,6 +172,19 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         } catch (e) {
             console.warn('Could not parse django-colors-data:', e);
+        }
+
+        // Edit Mode: pre-fill Vehicle Entries table from the existing Purchase.
+        try {
+            const existingElem = document.getElementById('django-existing-items-data');
+            if (existingElem && existingElem.textContent.trim()) {
+                const parsed = JSON.parse(existingElem.textContent);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    vehicleEntries = parsed;
+                }
+            }
+        } catch (e) {
+            console.warn('Could not parse django-existing-items-data:', e);
         }
     }
 
@@ -281,6 +301,19 @@ document.addEventListener('DOMContentLoaded', function () {
     const photoViewModal = document.getElementById('photoViewModal');
     const modalPreviewImage = document.getElementById('modalPreviewImage');
 
+    const removeInvoicePhotoInput = document.getElementById('id_remove_invoice_photo');
+
+    // Edit Mode: the server rendered an existing invoice photo -- wire up
+    // its preview/download links since no <input type="file"> change event
+    // has fired yet to populate them.
+    if (uploadedFileBar) {
+        const existingUrl = uploadedFileBar.getAttribute('data-existing-url');
+        if (existingUrl) {
+            if (modalPreviewImage) modalPreviewImage.src = existingUrl;
+            if (btnDownloadPhoto) btnDownloadPhoto.href = existingUrl;
+        }
+    }
+
     if (dropzoneBox && fileInput) {
         dropzoneBox.addEventListener('click', () => fileInput.click());
 
@@ -292,6 +325,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 dropzoneBox.classList.add('d-none');
                 uploadedFileBar.classList.remove('d-none');
+                if (removeInvoicePhotoInput) removeInvoicePhotoInput.value = '0';
 
                 const reader = new FileReader();
                 reader.onload = function (e) {
@@ -308,6 +342,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 dropzoneBox.classList.remove('d-none');
                 uploadedFileBar.classList.add('d-none');
                 if (modalPreviewImage) modalPreviewImage.src = '';
+                // Edit Mode: tell the backend to clear the previously saved
+                // invoice photo too (only takes effect if no new file is chosen).
+                if (removeInvoicePhotoInput) removeInvoicePhotoInput.value = '1';
             });
         }
 
@@ -340,9 +377,72 @@ document.addEventListener('DOMContentLoaded', function () {
     if (entryModelSelect) {
         entryModelSelect.addEventListener('change', function () {
             if (this.value === '__add_new__') {
+                editingModelId = null;
+                resetModelModalToAddMode();
                 if (modalAddModel) modalAddModel.classList.remove('d-none');
                 this.value = '';
             }
+            if (btnEditModelName) btnEditModelName.disabled = !(this.value && this.value !== '__add_new__');
+        });
+    }
+
+    function resetModelModalToAddMode() {
+        const titleEl = document.getElementById('modelModalTitle');
+        const btnTextEl = document.getElementById('btnSaveNewModelText');
+        const input = document.getElementById('new_model_name');
+        const errDiv = document.getElementById('modelModalError');
+        if (titleEl) titleEl.textContent = 'Add New Vehicle Model';
+        if (btnTextEl) btnTextEl.textContent = 'Save Model';
+        if (input) input.value = '';
+        if (errDiv) errDiv.classList.add('d-none');
+    }
+
+    function resetColorModalToAddMode() {
+        const titleEl = document.getElementById('colorModalTitle');
+        const btnTextEl = document.getElementById('btnSaveNewColorText');
+        const input = document.getElementById('new_color_name');
+        const errDiv = document.getElementById('newColorError');
+        if (titleEl) titleEl.textContent = 'Add New Color Option';
+        if (btnTextEl) btnTextEl.textContent = 'Add Color';
+        if (input) input.value = '';
+        if (errDiv) errDiv.classList.add('d-none');
+    }
+
+    function openEditModelModal(modelId) {
+        if (!modelId) return;
+        const modelObj = availableModels.find(m => String(m.id) === String(modelId));
+        if (!modelObj) return;
+        editingModelId = modelId;
+        const titleEl = document.getElementById('modelModalTitle');
+        const btnTextEl = document.getElementById('btnSaveNewModelText');
+        const input = document.getElementById('new_model_name');
+        const errDiv = document.getElementById('modelModalError');
+        if (titleEl) titleEl.textContent = 'Edit Vehicle Model';
+        if (btnTextEl) btnTextEl.textContent = 'Save Changes';
+        if (input) input.value = modelObj.model_name || modelObj.name || '';
+        if (errDiv) errDiv.classList.add('d-none');
+        if (modalAddModel) modalAddModel.classList.remove('d-none');
+    }
+
+    function openEditColorModal(colorId) {
+        if (!colorId) return;
+        const colorObj = availableColors.find(c => String(c.id) === String(colorId));
+        if (!colorObj) return;
+        editingColorId = colorId;
+        const titleEl = document.getElementById('colorModalTitle');
+        const btnTextEl = document.getElementById('btnSaveNewColorText');
+        const input = document.getElementById('new_color_name');
+        const errDiv = document.getElementById('newColorError');
+        if (titleEl) titleEl.textContent = 'Edit Color Name';
+        if (btnTextEl) btnTextEl.textContent = 'Save Changes';
+        if (input) input.value = colorObj.color_name || colorObj.name || '';
+        if (errDiv) errDiv.classList.add('d-none');
+        if (modalAddColor) modalAddColor.classList.remove('d-none');
+    }
+
+    if (btnEditModelName) {
+        btnEditModelName.addEventListener('click', function () {
+            openEditModelModal(entryModelSelect.value);
         });
     }
 
@@ -423,6 +523,57 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
+            // ==========================================
+            // EDIT MODE -- rename the existing VehicleModel in place (same ID).
+            // ==========================================
+            if (editingModelId !== null) {
+                const editPayload = { model_name: modelName, name: modelName };
+                try {
+                    let result = null;
+                    try {
+                        result = await apiRequest(`/yakuza/ajax/edit-model/${editingModelId}/`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(editPayload)
+                        });
+                    } catch (e) {
+                        result = await apiRequest(`/ajax/edit-model/${editingModelId}/`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(editPayload)
+                        });
+                    }
+
+                    const correctedName = result.name || modelName;
+                    await fetchModels();
+                    entryModelSelect.value = editingModelId;
+
+                    // Reflect the corrected spelling in any Vehicle Entries rows
+                    // already added to this purchase that reference this model.
+                    vehicleEntries.forEach(e => {
+                        if (String(e.modelId) === String(editingModelId)) {
+                            e.modelName = correctedName;
+                        }
+                    });
+                    renderVehicleTable();
+                    syncHiddenJson();
+
+                    if (input) input.value = '';
+                    editingModelId = null;
+                    resetModelModalToAddMode();
+                    if (modalAddModel) modalAddModel.classList.add('d-none');
+                } catch (err) {
+                    if (errDiv) {
+                        errDiv.textContent = err.message || 'Failed to update vehicle model.';
+                        errDiv.classList.remove('d-none');
+                    }
+                }
+                return;
+            }
+
+            // ==========================================
+            // ADD MODE -- unchanged.
+            // ==========================================
             const payload = { model_name: modelName, name: modelName };
 
             try {
@@ -467,6 +618,8 @@ document.addEventListener('DOMContentLoaded', function () {
         btnOpenNewColorModal.addEventListener('click', function () {
             const colorInput = document.getElementById('new_color_name');
             const errDiv = document.getElementById('newColorError');
+            editingColorId = null;
+            resetColorModalToAddMode();
             if (colorInput) colorInput.value = '';
             if (errDiv) errDiv.classList.add('d-none');
             if (modalAddColor) modalAddColor.classList.remove('d-none');
@@ -491,6 +644,68 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
+            // ==========================================
+            // EDIT MODE -- rename the existing VehicleColor in place (same ID).
+            // Works for both branch-specific and global (branch=NULL) colors;
+            // the branch itself is never touched by this call.
+            // ==========================================
+            if (editingColorId !== null) {
+                const editPayload = { color_name: colorName };
+                try {
+                    let result = null;
+                    try {
+                        result = await apiRequest(`/yakuza/ajax/edit-color/${editingColorId}/`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(editPayload)
+                        });
+                    } catch (e) {
+                        result = await apiRequest(`/ajax/edit-color/${editingColorId}/`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(editPayload)
+                        });
+                    }
+
+                    const correctedName = result.name || colorName;
+                    await fetchColors();
+
+                    // Reflect the corrected spelling in the currently open
+                    // Color Allocation rows and in already-added Vehicle
+                    // Entries that reference this color.
+                    currentModalColorRows.forEach(r => {
+                        if (String(r.colorId) === String(editingColorId)) {
+                            r.colorName = correctedName;
+                        }
+                    });
+                    vehicleEntries.forEach(e => {
+                        (e.colorAllocations || []).forEach(c => {
+                            if (String(c.colorId) === String(editingColorId)) {
+                                c.colorName = correctedName;
+                            }
+                        });
+                    });
+
+                    if (nameInput) nameInput.value = '';
+                    editingColorId = null;
+                    resetColorModalToAddMode();
+                    if (modalAddColor) modalAddColor.classList.add('d-none');
+
+                    renderModalColorRows();
+                    renderVehicleTable();
+                    syncHiddenJson();
+                } catch (err) {
+                    if (errDiv) {
+                        errDiv.textContent = err.message || 'Failed to update color.';
+                        errDiv.classList.remove('d-none');
+                    }
+                }
+                return;
+            }
+
+            // ==========================================
+            // ADD MODE -- unchanged.
+            // ==========================================
             const payload = {
                 color_name: colorName,
                 color_hex: hexInput ? hexInput.value : '#2563eb'
@@ -529,8 +744,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const btnCancelAddColor = document.getElementById('btnCancelAddColor');
     const btnCloseAddColorModal = document.getElementById('btnCloseAddColorModal');
-    if (btnCancelAddColor) btnCancelAddColor.addEventListener('click', () => modalAddColor.classList.add('d-none'));
-    if (btnCloseAddColorModal) btnCloseAddColorModal.addEventListener('click', () => modalAddColor.classList.add('d-none'));
+    if (btnCancelAddColor) btnCancelAddColor.addEventListener('click', () => { editingColorId = null; resetColorModalToAddMode(); modalAddColor.classList.add('d-none'); });
+    if (btnCloseAddColorModal) btnCloseAddColorModal.addEventListener('click', () => { editingColorId = null; resetColorModalToAddMode(); modalAddColor.classList.add('d-none'); });
+
+    const btnCloseAddModelModal = document.getElementById('btnCloseAddModelModal');
+    if (btnCloseAddModelModal) btnCloseAddModelModal.addEventListener('click', () => { editingModelId = null; resetModelModalToAddMode(); modalAddModel.classList.add('d-none'); });
 
     // ==========================================
     // VEHICLE ENTRIES LOGIC
@@ -816,6 +1034,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 <div class="color-row-qty-wrap">
                     <input type="number" class="form-input color-row-qty" data-index="${idx}" min="1" value="${row.quantity || 1}" placeholder="Qty">
                 </div>
+                <button type="button" class="btn-icon-action btn-edit-color-row" data-index="${idx}" title="Edit Color Name" ${row.colorId ? '' : 'disabled'}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                </button>
                 <button type="button" class="btn-remove-color-row" data-index="${idx}" title="Remove Row">&times;</button>
             `;
 
@@ -839,6 +1060,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (isNaN(val) || val < 0) val = 0;
                 currentModalColorRows[index].quantity = val;
                 calculateLiveAllocations();
+            });
+        });
+
+        document.querySelectorAll('.btn-edit-color-row').forEach(btn => {
+            btn.addEventListener('click', function () {
+                const index = parseInt(this.dataset.index, 10);
+                openEditColorModal(currentModalColorRows[index] ? currentModalColorRows[index].colorId : null);
             });
         });
 
@@ -1018,6 +1246,12 @@ document.addEventListener('DOMContentLoaded', function () {
             formData.append('supplier_id', supplierVal);
             formData.append('invoice_number', invoiceNum);
             formData.append('invoice_date', invoiceDate);
+            if (purchaseForm && purchaseForm.dataset.purchaseId) {
+                formData.append('purchase_id', purchaseForm.dataset.purchaseId);
+            }
+            if (removeInvoicePhotoInput) {
+                formData.append('remove_invoice_photo', removeInvoicePhotoInput.value);
+            }
             
 
             const itemsPayload = vehicleEntries.map(e => ({

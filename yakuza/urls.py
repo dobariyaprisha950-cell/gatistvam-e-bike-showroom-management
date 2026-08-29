@@ -41,10 +41,13 @@ urlpatterns = [
 
     # Purchase Module Endpoints
     path('purchase/', views.purchase_page_view, name='purchase'),
+    path('purchase/<int:purchase_id>/edit/', views.purchase_page_view, name='purchase_edit'),
     path('ajax/add-supplier/', views.add_supplier_ajax, name='add_supplier_ajax'),
     path('ajax/add-company/', views.add_company_ajax, name='add_company_ajax'),
     path('ajax/add-model/', views.add_model_ajax, name='add_model_ajax'),
+    path('ajax/edit-model/<int:model_id>/', views.edit_model_ajax, name='edit_model_ajax'),
     path('ajax/add-color/', views.add_color_ajax, name='add_color_ajax'),
+    path('ajax/edit-color/<int:color_id>/', views.edit_color_ajax, name='edit_color_ajax'),
     path('purchase_history/', views.purchase_history, name='purchase_history'),
 
     # Sales & Customer Endpoints
