@@ -339,6 +339,24 @@
     justify-content: flex-end;
 }
 
+/* Center table headings and values */
+#purchaseTable th,
+#purchaseTable td {
+    text-align: center;
+    vertical-align: middle;
+}
+
+/* Keep invoice thumbnail centered */
+#purchaseTable td:first-child {
+    text-align: center;
+}
+
+/* Keep View/Edit buttons centered */
+#purchaseTable .erp-action-btn-group {
+    justify-content: center;
+    align-items: center;
+}
+
 /* Responsive Rules */
 @media (max-width: 1024px) {
     .filter-grid {

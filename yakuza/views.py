@@ -35,7 +35,7 @@ from django.contrib.auth import authenticate, login as auth_login, logout, updat
 from django.contrib.auth.models import User
 from django.contrib import messages
 from django.conf import settings as django_settings
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.db.models import Sum, F, ExpressionWrapper, DecimalField, Q, Count
 from django.db.models.functions import TruncMonth, TruncDay
 
@@ -1011,9 +1011,228 @@ def live_stock(request):
 # ==========================================
 # PURCHASE PAGE VIEWS & AJAX
 # ==========================================
+def _parse_vehicle_line_items(vehicle_items, branch):
+    """
+    Flattens the same 'vehicle_items_json' payload shape used by the Purchase
+    page (one row per model, exploded into one or more color allocations)
+    into a flat list of {model_id, color_id, quantity, unit_price} dicts.
+
+    This is the single source of truth for interpreting that payload, used
+    by BOTH the create flow and the edit flow, so the two never disagree on
+    how a vehicle entry maps to PurchaseItem/Stock rows.
+    """
+    if not vehicle_items or not isinstance(vehicle_items, list):
+        raise ValueError("At least one vehicle entry is required.")
+
+    flattened = []
+
+    for item in vehicle_items:
+        model_id = item.get('model_id') or item.get('vehicle_model') or item.get('model')
+        if not model_id:
+            raise ValueError("Vehicle model is required for all entries.")
+
+        vehicle_model = VehicleModel.objects.select_related('company').get(id=model_id, branch=branch, is_active=True)
+        unit_price = Decimal(str(item.get('purchase_price') or item.get('unit_price') or item.get('price') or '0'))
+        if unit_price <= 0:
+            raise ValueError(f"Purchase price for model '{vehicle_model.model_name}' must be greater than zero.")
+
+        color_allocations = item.get('color_allocations') or item.get('colors') or []
+        if not color_allocations:
+            color_id = item.get('color_id') or item.get('color')
+            qty = int(item.get('quantity', 1))
+            if color_id:
+                color_allocations = [{'color_id': color_id, 'quantity': qty}]
+
+        if not color_allocations or not isinstance(color_allocations, list):
+            raise ValueError(f"Color allocation is missing for vehicle model '{vehicle_model.model_name}'.")
+
+        alloc_total_qty = 0
+
+        for alloc in color_allocations:
+            color_id = alloc.get('color_id') or alloc.get('color')
+            alloc_qty = int(alloc.get('quantity', 0))
+
+            if not color_id or alloc_qty <= 0:
+                continue
+
+            # Legacy/global colors (branch is NULL) are valid too
+            color_obj = VehicleColor.objects.get(
+                Q(branch=branch) | Q(branch__isnull=True),
+                id=color_id,
+                is_active=True,
+            )
+
+            flattened.append({
+                'model': vehicle_model,
+                'color': color_obj,
+                'quantity': alloc_qty,
+                'unit_price': unit_price,
+            })
+            alloc_total_qty += alloc_qty
+
+        if alloc_total_qty <= 0:
+            raise ValueError(f"No valid color quantity allocated for model '{vehicle_model.model_name}'.")
+
+    if not flattened:
+        raise ValueError("At least one valid vehicle color allocation is required.")
+
+    return flattened
+
+
+def _reconcile_purchase_items_and_stock(purchase, branch, line_items):
+    """
+    THE single source of truth for Purchase Edit stock reconciliation.
+
+    Brings the PurchaseItem + Stock rows of an existing `purchase` to match
+    the desired final state described by `line_items` (as produced by
+    `_parse_vehicle_line_items`), reversing whatever the OLD allocation was
+    and applying the NEW allocation -- without ever double-counting stock.
+
+    Matching key: (model_id, color_id). For each key:
+      - If a PurchaseItem already exists for that (model, color) on this
+        purchase, it is UPDATED IN PLACE (never deleted+recreated), and its
+        AVAILABLE Stock rows are grown/shrunk to match the new quantity
+        (net change only -- e.g. 5 -> 8 adds exactly 3, 8 -> 5 removes
+        exactly 3). SOLD stock rows are never touched or deleted.
+      - If no PurchaseItem exists yet for that key (e.g. model/color was
+        changed to something new), a new PurchaseItem + AVAILABLE Stock rows
+        are created for it -- this is the "apply new allocation" half of a
+        model/color change.
+      - Any PurchaseItem that existed before but is no longer present in the
+        desired state (e.g. the old model/color of a changed entry) is
+        removed along with its AVAILABLE Stock rows -- this is the "reverse
+        old allocation" half of a model/color change.
+
+    A quantity reduction (or removal) that would require deleting more units
+    than are currently AVAILABLE (i.e. some units of that exact
+    model+color+purchase-item are already SOLD) is rejected with a
+    ValueError, which the caller turns into a 400 + full transaction
+    rollback -- sold stock is never silently deleted or reassigned.
+    """
+    desired = {}
+    for li in line_items:
+        key = (li['model'].id, li['color'].id)
+        entry = desired.setdefault(key, {'model': li['model'], 'color': li['color'], 'quantity': 0, 'unit_price': li['unit_price']})
+        entry['quantity'] += li['quantity']
+        entry['unit_price'] = li['unit_price']
+
+    existing_items = list(
+        purchase.items.select_related('model', 'color', 'company').all()
+    )
+    existing_by_key = {}
+    for it in existing_items:
+        existing_by_key.setdefault((it.model_id, it.color_id), []).append(it)
+
+    handled_keys = set()
+
+    for key, data in desired.items():
+        vehicle_model = data['model']
+        color_obj = data['color']
+        new_qty = data['quantity']
+        new_price = data['unit_price']
+
+        items_for_key = existing_by_key.get(key, [])
+
+        if items_for_key:
+            # UPDATE existing PurchaseItem in place -- never create a duplicate.
+            item = items_for_key[0]
+            handled_keys.add(key)
+            old_qty = item.quantity
+
+            sold_count = Stock.objects.filter(purchase_item=item, stock_status=Stock.StockStatus.SOLD).count()
+            if new_qty < sold_count:
+                raise ValueError(
+                    f"Cannot reduce quantity for '{vehicle_model.model_name} ({color_obj.color_name})' below "
+                    f"{sold_count} unit(s) that are already sold."
+                )
+
+            item.company = vehicle_model.company
+            item.model = vehicle_model
+            item.color = color_obj
+            item.purchase_price = new_price
+            item.quantity = new_qty
+            item.save()  # recalculates subtotal/total_amount via PurchaseItem.save()
+
+            # Keep AVAILABLE stock in sync with the (possibly changed) model/color/price.
+            Stock.objects.filter(purchase_item=item, stock_status=Stock.StockStatus.AVAILABLE).update(
+                branch=branch, company=vehicle_model.company, model=vehicle_model,
+                color=color_obj, purchase_price=new_price,
+            )
+
+            if new_qty > old_qty:
+                # Reverse nothing -- simply APPLY the extra new units.
+                diff = new_qty - old_qty
+                Stock.objects.bulk_create([
+                    Stock(
+                        purchase_item=item, branch=branch, company=vehicle_model.company,
+                        model=vehicle_model, color=color_obj, purchase_price=new_price,
+                        stock_status=Stock.StockStatus.AVAILABLE,
+                        chassis_number=None, battery_number=None, motor_number=None, controller_number=None,
+                    )
+                    for _ in range(diff)
+                ])
+            elif new_qty < old_qty:
+                # REVERSE exactly the removed units (only ever AVAILABLE, never SOLD).
+                diff = old_qty - new_qty
+                removable_ids = list(
+                    Stock.objects.filter(purchase_item=item, stock_status=Stock.StockStatus.AVAILABLE)
+                    .order_by('-id').values_list('id', flat=True)[:diff]
+                )
+                if len(removable_ids) < diff:
+                    raise ValueError(
+                        f"Cannot reduce quantity for '{vehicle_model.model_name} ({color_obj.color_name})' -- "
+                        f"not enough available (unsold) stock to remove."
+                    )
+                Stock.objects.filter(id__in=removable_ids).delete()
+            # new_qty == old_qty: quantity unchanged, only price/model/color (if any) applied above.
+
+        else:
+            # New (model, color) combination for this purchase -- APPLY new allocation from scratch.
+            item = PurchaseItem.objects.create(
+                purchase=purchase, company=vehicle_model.company, model=vehicle_model,
+                color=color_obj, quantity=new_qty, purchase_price=new_price,
+            )
+            Stock.objects.bulk_create([
+                Stock(
+                    purchase_item=item, branch=branch, company=vehicle_model.company,
+                    model=vehicle_model, color=color_obj, purchase_price=new_price,
+                    stock_status=Stock.StockStatus.AVAILABLE,
+                    chassis_number=None, battery_number=None, motor_number=None, controller_number=None,
+                )
+                for _ in range(new_qty)
+            ])
+
+    # Anything that existed before but is no longer in the desired state
+    # (e.g. the OLD model/color of an entry that was changed) -- REVERSE it fully.
+    for key, items_for_key in existing_by_key.items():
+        if key in handled_keys:
+            continue
+        for item in items_for_key:
+            sold_count = Stock.objects.filter(purchase_item=item, stock_status=Stock.StockStatus.SOLD).count()
+            if sold_count > 0:
+                raise ValueError(
+                    f"Cannot remove '{item.model.model_name} ({item.color.color_name})' from this purchase -- "
+                    f"{sold_count} unit(s) already sold."
+                )
+            Stock.objects.filter(purchase_item=item, stock_status=Stock.StockStatus.AVAILABLE).delete()
+            item.delete()
+
+
 @login_required
-def purchase_page_view(request):
+def purchase_page_view(request, purchase_id=None):
     branch = get_user_branch_context(request)
+
+    # ---- Resolve edit target (if any) with strict branch isolation ----
+    purchase = None
+    if purchase_id is not None:
+        purchase = get_object_or_404(
+            Purchase.objects.select_related('supplier', 'branch'),
+            id=purchase_id
+        )
+        # A user must not be able to edit another branch's purchase by
+        # manually changing the Purchase ID in the URL.
+        if not branch or purchase.branch_id != branch.id:
+            return HttpResponseForbidden("You do not have permission to edit this purchase.")
 
     if request.method == 'POST':
         try:
@@ -1036,11 +1255,44 @@ def purchase_page_view(request):
                 except Supplier.DoesNotExist:
                     return JsonResponse({'success': False, 'error': 'Selected supplier is not available in the current branch.'}, status=400)
 
+                raw_items = request.POST.get('vehicle_items_json') or request.POST.get('vehicle_items') or request.POST.get('items') or '[]'
+                vehicle_items = json.loads(raw_items) if isinstance(raw_items, str) else raw_items
+                line_items = _parse_vehicle_line_items(vehicle_items, branch)
+
+                if purchase is not None:
+                    # ==========================================
+                    # EDIT / UPDATE MODE -- same Purchase ID, no duplicates.
+                    # ==========================================
+                    # Re-fetch + lock the row for the duration of this transaction so
+                    # a double-submit (or two concurrent edits) can't race each other.
+                    purchase = Purchase.objects.select_for_update().get(id=purchase.id, branch=branch)
+
+                    purchase.purchase_date = purchase_date
+                    purchase.supplier = supplier
+                    purchase.invoice_number = invoice_number
+                    purchase.invoice_date = invoice_date
+                    if remarks:
+                        purchase.remarks = remarks
+                    if invoice_photo:
+                        purchase.invoice_photo = invoice_photo
+                    elif request.POST.get('remove_invoice_photo') == '1':
+                        purchase.invoice_photo = None
+                    purchase.save()
+
+                    # Reverse OLD stock effect + apply NEW stock effect (net-only, atomic).
+                    _reconcile_purchase_items_and_stock(purchase, branch, line_items)
+
+                    redirect_url = reverse('yakuza:purchase_history')
+                    return JsonResponse({'success': True, 'purchase_id': purchase.id, 'purchase_number': purchase.purchase_number, 'redirect_url': redirect_url, 'mode': 'update'})
+
+                # ==========================================
+                # CREATE MODE -- unchanged from the original implementation.
+                # ==========================================
                 purchase_number = f"PUR-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:4].upper()}"
                 while Purchase.objects.filter(purchase_number=purchase_number).exists():
                     purchase_number = f"PUR-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:4].upper()}"
 
-                purchase = Purchase.objects.create(
+                new_purchase = Purchase.objects.create(
                     purchase_number=purchase_number,
                     purchase_date=purchase_date,
                     supplier=supplier,
@@ -1052,99 +1304,84 @@ def purchase_page_view(request):
                     created_by=request.user
                 )
 
-                raw_items = request.POST.get('vehicle_items_json') or request.POST.get('vehicle_items') or request.POST.get('items') or '[]'
-                vehicle_items = json.loads(raw_items) if isinstance(raw_items, str) else raw_items
+                for li in line_items:
+                    purchase_item = PurchaseItem.objects.create(
+                        purchase=new_purchase,
+                        company=li['model'].company,
+                        model=li['model'],
+                        color=li['color'],
+                        quantity=li['quantity'],
+                        purchase_price=li['unit_price']
+                    )
 
-                if not vehicle_items or not isinstance(vehicle_items, list):
-                    raise ValueError("At least one vehicle entry is required.")
-
-                for item in vehicle_items:
-                    model_id = item.get('model_id') or item.get('vehicle_model') or item.get('model')
-                    if not model_id:
-                        raise ValueError("Vehicle model is required for all entries.")
-
-                    vehicle_model = VehicleModel.objects.select_related('company').get(id=model_id, branch=branch, is_active=True)
-                    unit_price = Decimal(str(item.get('purchase_price') or item.get('unit_price') or item.get('price') or '0'))
-                    if unit_price <= 0:
-                        raise ValueError(f"Purchase price for model '{vehicle_model.model_name}' must be greater than zero.")
-
-                    color_allocations = item.get('color_allocations') or item.get('colors') or []
-                    if not color_allocations:
-                        color_id = item.get('color_id') or item.get('color')
-                        qty = int(item.get('quantity', 1))
-                        if color_id:
-                            color_allocations = [{'color_id': color_id, 'quantity': qty}]
-
-                    if not color_allocations or not isinstance(color_allocations, list):
-                        raise ValueError(f"Color allocation is missing for vehicle model '{vehicle_model.model_name}'.")
-
-                    alloc_total_qty = 0
-
-                    # દરેક કલર એલોકેશન માટે લૂપ
-                    for alloc in color_allocations:
-                        color_id = alloc.get('color_id') or alloc.get('color')
-                        alloc_qty = int(alloc.get('quantity', 0))
-
-                        if not color_id or alloc_qty <= 0:
-                            continue
-
-                        # Legacy/global colors (branch is NULL) are valid too
-                        color_obj = VehicleColor.objects.get(
-                            Q(branch=branch) | Q(branch__isnull=True),
-                            id=color_id,
-                            is_active=True,
+                    stock_items = [
+                        Stock(
+                            purchase_item=purchase_item,
+                            branch=branch,
+                            company=li['model'].company,
+                            model=li['model'],
+                            color=li['color'],
+                            purchase_price=li['unit_price'],
+                            stock_status=Stock.StockStatus.AVAILABLE,
+                            chassis_number=None,
+                            battery_number=None,
+                            motor_number=None,
+                            controller_number=None,
                         )
-
-                        # 1. કલર માટે PurchaseItem બનાવો
-                        purchase_item = PurchaseItem.objects.create(
-                            purchase=purchase,
-                            company=vehicle_model.company,
-                            model=vehicle_model,
-                            color=color_obj,
-                            quantity=alloc_qty,
-                            purchase_price=unit_price
-                        )
-
-                        # 2. આ કલર માટે Stock ઓબ્જેક્ટ્સની લિસ્ટ બનાવો
-                        stock_items = [
-                            Stock(
-                                purchase_item=purchase_item,
-                                branch=branch,
-                                company=vehicle_model.company,
-                                model=vehicle_model,
-                                color=color_obj,
-                                purchase_price=unit_price,
-                                stock_status=Stock.StockStatus.AVAILABLE,
-                                chassis_number=None,
-                                battery_number=None,
-                                motor_number=None,
-                                controller_number=None,
-                            )
-                            for _ in range(alloc_qty)
-                        ]
-
-                        # 3. લૂપની અંદર જ સ્ટોક DB માં સેવ કરો
-                        Stock.objects.bulk_create(stock_items)
-
-                        # 4. ટોટલ જથ્થો ઉમેરો
-                        alloc_total_qty += alloc_qty
-
-                    if alloc_total_qty <= 0:
-                        raise ValueError(f"No valid color quantity allocated for model '{vehicle_model.model_name}'.")
+                        for _ in range(li['quantity'])
+                    ]
+                    Stock.objects.bulk_create(stock_items)
 
                 redirect_url = reverse('yakuza:purchase_history')
-                return JsonResponse({'success': True, 'purchase_id': purchase.id, 'purchase_number': purchase.purchase_number, 'redirect_url': redirect_url})
+                return JsonResponse({'success': True, 'purchase_id': new_purchase.id, 'purchase_number': new_purchase.purchase_number, 'redirect_url': redirect_url, 'mode': 'create'})
 
         except Exception as e:
             return JsonResponse({'success': False, 'error': str(e)}, status=400)
 
     suppliers = Supplier.objects.filter(is_active=True, branch=branch) if branch else Supplier.objects.none()
     models = VehicleModel.objects.filter(is_active=True, branch=branch) if branch else VehicleModel.objects.none()
-    
+
     from .utils import get_visible_vehicle_colors
     colors = get_visible_vehicle_colors(branch)
 
-    return render(request, 'yakuza/purchase.html', {'suppliers': suppliers, 'models': models, 'colors': colors})
+    context = {'suppliers': suppliers, 'models': models, 'colors': colors, 'purchase': purchase}
+
+    if purchase is not None:
+        # Build the pre-fill payload for the Vehicle Entries table: one row
+        # per model (matching how the page groups entries), each carrying
+        # its existing color allocations -- exactly what the JS needs to
+        # reconstruct `vehicleEntries` on load.
+        existing_items_qs = purchase.items.select_related('model', 'color', 'company').order_by('id')
+        grouped = {}
+        order = []
+        for it in existing_items_qs:
+            if it.model_id not in grouped:
+                grouped[it.model_id] = {
+                    'id': f've_existing_{it.model_id}',
+                    'modelId': str(it.model_id),
+                    'modelName': it.model.model_name,
+                    'quantity': 0,
+                    'unitPrice': float(it.purchase_price),
+                    'totalAmount': 0,
+                    'colorAllocations': [],
+                }
+                order.append(it.model_id)
+            grouped[it.model_id]['quantity'] += it.quantity
+            grouped[it.model_id]['colorAllocations'].append({
+                'colorId': str(it.color_id),
+                'colorName': it.color.color_name,
+                'quantity': it.quantity,
+            })
+
+        existing_items_list = []
+        for model_id in order:
+            g = grouped[model_id]
+            g['totalAmount'] = round(g['quantity'] * g['unitPrice'], 2)
+            existing_items_list.append(g)
+
+        context['existing_items_json'] = json.dumps(existing_items_list)
+
+    return render(request, 'yakuza/purchase.html', context)
 
 @transaction.atomic
 def repair_missing_stock():
@@ -1311,6 +1548,130 @@ def add_color_ajax(request):
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
             
+@login_required
+@require_POST
+def edit_model_ajax(request, model_id):
+    """
+    Corrects the spelling of an EXISTING VehicleModel IN PLACE.
+
+    Data-safety guarantees:
+      - The VehicleModel row is UPDATED, never deleted+recreated.
+      - Its primary key never changes.
+      - `branch` and `company` are left untouched, so every Purchase,
+        PurchaseItem, and Stock row that references this model via FK keeps
+        working unchanged and automatically shows the corrected name the
+        next time it's displayed (they store the model_id, not a copy of
+        the name).
+    """
+    branch = get_user_branch_context(request)
+    if not branch:
+        return JsonResponse({'success': False, 'error': 'Select a specific branch before editing a model.'}, status=400)
+
+    model_obj = get_object_or_404(VehicleModel, id=model_id)
+
+    # Branch isolation: a user must not be able to edit another branch's
+    # model, even by guessing/typing its ID directly into the AJAX URL.
+    if model_obj.branch_id != branch.id:
+        return JsonResponse({'success': False, 'error': 'You do not have permission to edit this model.'}, status=403)
+
+    new_name = None
+    if request.content_type == 'application/json':
+        try:
+            data = json.loads(request.body)
+            new_name = data.get('model_name') or data.get('name')
+        except Exception:
+            pass
+    if not new_name:
+        new_name = request.POST.get('model_name') or request.POST.get('name')
+
+    if not new_name or not new_name.strip():
+        return JsonResponse({'success': False, 'error': 'Model name is required.'}, status=400)
+
+    new_name_clean = new_name.strip()
+
+    # Prevent duplicate ACTIVE model names within the same branch (and same
+    # company, matching the existing create-time scoping), case-insensitive,
+    # excluding this model itself.
+    duplicate_exists = VehicleModel.objects.filter(
+        branch=branch, company=model_obj.company, model_name__iexact=new_name_clean, is_active=True
+    ).exclude(id=model_obj.id).exists()
+    if duplicate_exists:
+        return JsonResponse({'success': False, 'error': f"A model named '{new_name_clean}' already exists in this branch."}, status=400)
+
+    try:
+        with transaction.atomic():
+            model_obj.model_name = new_name_clean
+            model_obj.save(update_fields=['model_name'])
+    except IntegrityError:
+        return JsonResponse({'success': False, 'error': f"A model named '{new_name_clean}' already exists in this branch."}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+    return JsonResponse({'success': True, 'id': model_obj.id, 'name': model_obj.model_name})
+
+
+@login_required
+@require_POST
+def edit_color_ajax(request, color_id):
+    """
+    Corrects the spelling of an EXISTING VehicleColor IN PLACE.
+
+    Data-safety guarantees:
+      - The VehicleColor row is UPDATED, never deleted+recreated.
+      - Its primary key never changes.
+      - `branch` is left untouched -- a global color (branch IS NULL) stays
+        global, a branch-specific color keeps its existing branch -- so
+        every Purchase/PurchaseItem/Stock row referencing this color via FK
+        keeps working unchanged.
+    """
+    branch = get_user_branch_context(request)
+    if not branch:
+        return JsonResponse({'success': False, 'error': 'Select a specific branch before editing a color.'}, status=400)
+
+    color_obj = get_object_or_404(VehicleColor, id=color_id)
+
+    # Branch isolation: the current branch's own colors, and legacy/global
+    # colors (branch IS NULL) which the Purchase page already treats as
+    # visible/usable from every branch -- but never another branch's color.
+    if color_obj.branch_id is not None and color_obj.branch_id != branch.id:
+        return JsonResponse({'success': False, 'error': 'You do not have permission to edit this color.'}, status=403)
+
+    new_name = None
+    if request.content_type == 'application/json':
+        try:
+            data = json.loads(request.body)
+            new_name = data.get('color_name') or data.get('name') or data.get('colorName')
+        except Exception:
+            pass
+    if not new_name:
+        new_name = request.POST.get('color_name') or request.POST.get('name') or request.POST.get('colorName')
+
+    if not new_name or not new_name.strip():
+        return JsonResponse({'success': False, 'error': 'Color name is required.'}, status=400)
+
+    new_name_clean = new_name.strip()
+
+    # Duplicate check scoped exactly the way this color is scoped (its own
+    # branch, or global if branch IS NULL) -- never scoped to the editor's
+    # current branch, since that could wrongly flag/miss global colors.
+    duplicate_exists = VehicleColor.objects.filter(
+        branch=color_obj.branch, color_name__iexact=new_name_clean, is_active=True
+    ).exclude(id=color_obj.id).exists()
+    if duplicate_exists:
+        return JsonResponse({'success': False, 'error': f"A color named '{new_name_clean}' already exists."}, status=400)
+
+    try:
+        with transaction.atomic():
+            color_obj.color_name = new_name_clean
+            color_obj.save(update_fields=['color_name'])
+    except IntegrityError:
+        return JsonResponse({'success': False, 'error': f"A color named '{new_name_clean}' already exists."}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+    return JsonResponse({'success': True, 'id': color_obj.id, 'name': color_obj.color_name})
+
+
 @login_required
 def purchase_history(request):
     branch_context = get_user_branch_context(request)

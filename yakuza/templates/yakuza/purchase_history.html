@@ -62,15 +62,27 @@
                         <td>{{ purchase.computed_qty }} Items</td>
                         <td class="erp-amount">₹ {{ purchase.computed_total|floatformat:2 }}</td>
                         <td>
-                            <button type="button" class="erp-btn erp-btn-sm erp-btn-primary view-btn" 
-                                data-invoiceno="{{ purchase.invoice_number }}" 
-                                data-date="{{ purchase.purchase_date|date:'d M Y' }}" 
-                                data-supplier="{{ purchase.supplier.supplier_name }}" 
-                                data-qty="{{ purchase.computed_qty }} Items" 
-                                data-amount="₹ {{ purchase.computed_total|floatformat:2 }}"
-                                {% if purchase.invoice_photo %}data-img="{{ purchase.invoice_photo.url }}"{% endif %}>
-                                View
-                            </button>
+                            <div class="erp-action-btn-group" style="display:flex; gap:6px; justify-content:center; flex-wrap:wrap;">
+                                <button type="button"
+                                        class="erp-btn erp-btn-sm erp-btn-primary view-btn"
+                                        data-invoiceno="{{ purchase.invoice_number }}"
+                                        data-date="{{ purchase.purchase_date|date:'d M Y' }}"
+                                        data-supplier="{{ purchase.supplier.supplier_name }}"
+                                        data-qty="{{ purchase.computed_qty }} Items"
+                                        data-amount="₹ {{ purchase.computed_total|floatformat:2 }}"
+                                        {% if purchase.invoice_photo %}data-img="{{ purchase.invoice_photo.url }}"{% endif %}>
+                                    View
+                                </button>
+
+                                <a href="{% url 'yakuza:purchase_edit' purchase.id %}"
+                                class="erp-btn erp-btn-sm erp-btn-primary edit-btn"
+                                title="Edit Purchase"
+                                style="text-decoration: none;">
+                                    Edit
+                                </a>
+                            </div>
+
+    
                         </td>
                     </tr>
                     {% endwith %}

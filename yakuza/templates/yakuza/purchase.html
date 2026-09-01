@@ -1,15 +1,17 @@
 {% extends "yakuza/base.html" %}
 {% load static %}
-{% block page_title %}Purchase {% endblock %}
+{% block page_title %}{% if purchase %}Edit Purchase{% else %}Purchase{% endif %}{% endblock %}
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/purchase.css' %}">
 {% endblock %}
 
 {% block content %}
 <div class="purchase-page-wrapper">
-    <form id="purchaseForm" method="POST" action="{% url 'yakuza:purchase' %}" enctype="multipart/form-data">
+    <form id="purchaseForm" method="POST" action="{% if purchase %}{% url 'yakuza:purchase_edit' purchase.id %}{% else %}{% url 'yakuza:purchase' %}{% endif %}" enctype="multipart/form-data" data-mode="{% if purchase %}edit{% else %}create{% endif %}" data-purchase-id="{{ purchase.id|default:'' }}">
         {% csrf_token %}
         <input type="hidden" name="vehicle_items_json" id="id_vehicle_items_json" value="[]">
+        <input type="hidden" name="purchase_id" id="id_purchase_id" value="{{ purchase.id|default:'' }}">
+        <input type="hidden" name="remove_invoice_photo" id="id_remove_invoice_photo" value="0">
 
         <!-- 1. PURCHASE INFORMATION CARD -->
         <div class="erp-card">
@@ -33,7 +35,7 @@
                         <label class="field-label">Invoice Photo</label>
                         <input type="file" id="id_invoice_photo" name="invoice_photo" accept="image/*" class="d-none">
                         
-                        <div class="upload-dropzone-box" id="dropzoneBox">
+                        <div class="upload-dropzone-box {% if purchase.invoice_photo %}d-none{% endif %}" id="dropzoneBox">
                             <div class="upload-icon-circle">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2">
                                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -46,7 +48,7 @@
                         </div>
 
                         <!-- Uploaded File Bar -->
-                        <div class="file-attached-card d-none" id="uploadedFileBar">
+                        <div class="file-attached-card {% if not purchase.invoice_photo %}d-none{% endif %}" id="uploadedFileBar" data-existing-url="{% if purchase.invoice_photo %}{{ purchase.invoice_photo.url }}{% endif %}">
                             <div class="file-info-group">
                                 <div class="doc-icon-box">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2">
@@ -55,7 +57,7 @@
                                     </svg>
                                 </div>
                                 <div class="file-text-details">
-                                    <span class="file-name-str" id="fileNameText"></span>
+                                    <span class="file-name-str" id="fileNameText">{% if purchase.invoice_photo %}{{ purchase.invoice_photo.name }}{% endif %}</span>
                                     <span class="file-size-str" id="fileSizeText"></span>
                                 </div>
                             </div>
@@ -63,7 +65,7 @@
                                 <button type="button" class="btn-action-icon" id="btnViewPhoto" title="View Preview">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                                 </button>
-                                <a id="btnDownloadPhoto" class="btn-action-icon" download title="Download File">
+                                <a id="btnDownloadPhoto" class="btn-action-icon" href="{% if purchase.invoice_photo %}{{ purchase.invoice_photo.url }}{% endif %}" download title="Download File">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                                 </a>
                                 <button type="button" class="btn-action-icon text-danger" id="btnDeletePhoto" title="Remove File">
@@ -77,17 +79,17 @@
                     <div class="info-fields-grid">
                         <div class="form-field-item">
                             <label class="field-label">Purchase ID</label>
-                            <input type="text" id="id_purchase_number" name="purchase_number" class="form-input readonly-input" value="{{ purchase_number }}" placeholder="Auto Generated" readonly>
+                            <input type="text" id="id_purchase_number" name="purchase_number" class="form-input readonly-input" value="{% if purchase %}{{ purchase.purchase_number }}{% else %}{{ purchase_number }}{% endif %}" placeholder="Auto Generated" readonly>
                         </div>
 
                         <div class="form-field-item">
                             <label class="field-label">Invoice No. <span class="asterisk-red">*</span></label>
-                            <input type="text" id="id_invoice_number" name="invoice_number" class="form-input" placeholder="Enter Invoice No." required>
+                            <input type="text" id="id_invoice_number" name="invoice_number" class="form-input" placeholder="Enter Invoice No." value="{{ purchase.invoice_number|default:'' }}" required>
                         </div>
 
                         <div class="form-field-item">
                             <label class="field-label">Invoice Date <span class="asterisk-red">*</span></label>
-                            <input type="date" id="id_invoice_date" name="invoice_date" class="form-input" required value="{% now 'Y-m-d' %}">
+                            <input type="date" id="id_invoice_date" name="invoice_date" class="form-input" required value="{% if purchase %}{{ purchase.invoice_date|date:'Y-m-d' }}{% else %}{% now 'Y-m-d' %}{% endif %}">
                         </div>
 
                         <!-- Dynamic Supplier Select -->
@@ -97,7 +99,7 @@
                                 <option value="">Select Supplier</option>
                                 <option value="__add_new__" class="add-new-option-style">+ Add New Supplier</option>
                                 {% for supplier in suppliers %}
-                                    <option value="{{ supplier.id }}">
+                                    <option value="{{ supplier.id }}" {% if purchase.supplier_id == supplier.id %}selected{% endif %}>
                                         {{ supplier.supplier_name }}
                                     </option>
                                 {% endfor %}
@@ -107,7 +109,7 @@
                         
                         <div class="form-field-item">
                             <label class="field-label">Notes (Optional)</label>
-                            <input type="text" id="id_notes" name="notes" class="form-input" placeholder="Enter notes...">
+                            <input type="text" id="id_notes" name="notes" class="form-input" placeholder="Enter notes..." value="{{ purchase.remarks|default:'' }}">
                         </div>
                     </div>
                 </div>
@@ -132,10 +134,15 @@
                 <div class="vehicle-controls-row">
                     <div class="form-field-item flex-item flex-2">
                         <label class="field-label" for="entry_model">Model <span class="asterisk-red">*</span></label>
-                        <select id="entry_model" class="form-input">
-                            <option value="">Select Model</option>
-                            <option value="__add_new__" class="add-new-option-style">+ Add New Model</option>
-                        </select>
+                        <div style="display:flex; gap:6px; align-items:center;">
+                            <select id="entry_model" class="form-input" style="flex:1;">
+                                <option value="">Select Model</option>
+                                <option value="__add_new__" class="add-new-option-style">+ Add New Model</option>
+                            </select>
+                            <button type="button" id="btnEditModelName" class="btn-icon-action" title="Edit Model Name" disabled>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                            </button>
+                        </div>
                     </div>
 
                     <div class="form-field-item flex-item flex-1">
@@ -221,7 +228,7 @@
                     <polyline points="17 21 17 13 7 13 7 21"></polyline>
                     <polyline points="7 3 7 8 15 8"></polyline>
                 </svg>
-                <span>Save Purchase</span>
+                <span id="btnSavePurchaseText">{% if purchase %}Update Purchase{% else %}Save Purchase{% endif %}</span>
             </button>
         </div>
     </form>
@@ -302,7 +309,7 @@
 <div class="custom-modal d-none" id="modalAddColor">
     <div class="custom-modal-content max-w-400">
         <div class="custom-modal-header">
-            <h3>Add New Color Option</h3>
+            <h3 id="colorModalTitle">Add New Color Option</h3>
             <span class="close-modal" id="btnCloseAddColorModal">&times;</span>
         </div>
         <div class="custom-modal-body">
@@ -314,7 +321,7 @@
         </div>
         <div class="custom-modal-footer">
             <button type="button" class="btn-secondary" id="btnCancelAddColor">Cancel</button>
-            <button type="button" class="btn-modal-submit" id="btnSaveNewColor">Add Color</button>
+            <button type="button" class="btn-modal-submit" id="btnSaveNewColor"><span id="btnSaveNewColorText">Add Color</span></button>
         </div>
     </div>
 </div>
@@ -359,17 +366,18 @@
 <div class="custom-modal d-none" id="modalAddModel">
     <div class="custom-modal-content max-w-400">
         <div class="custom-modal-header">
-            <h3>Add New Vehicle Model</h3>
-            <span class="close-modal">&times;</span>
+            <h3 id="modelModalTitle">Add New Vehicle Model</h3>
+            <span class="close-modal" id="btnCloseAddModelModal">&times;</span>
         </div>
         <div class="custom-modal-body">
             <div class="form-field-item mb-10">
                 <label class="field-label">Model Name <span class="asterisk-red">*</span></label>
                 <input type="text" id="new_model_name" class="form-input" placeholder="e.g. Model D (Yakuza Alpha)">
             </div>
+            <div class="modal-inline-error d-none mt-10" id="modelModalError"></div>
         </div>
         <div class="custom-modal-footer">
-            <button type="button" class="btn-modal-submit" id="btnSaveNewModel">Save Model</button>
+            <button type="button" class="btn-modal-submit" id="btnSaveNewModel"><span id="btnSaveNewModelText">Save Model</span></button>
         </div>
     </div>
 </div>
@@ -445,6 +453,11 @@
     }{% if not forloop.last %},{% endif %}
     {% endfor %}
 ]
+</script>
+
+<!-- Existing Purchase Items (Edit Mode Only) -->
+<script id="django-existing-items-data" type="application/json">
+{% if purchase %}{{ existing_items_json|safe }}{% else %}[]{% endif %}
 </script>
 {% endblock %}
 
