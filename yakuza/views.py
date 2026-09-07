@@ -1244,6 +1244,7 @@ def purchase_page_view(request, purchase_id=None):
                 invoice_number = request.POST.get('invoice_number', '').strip()
                 invoice_date = request.POST.get('invoice_date', '').strip()
                 purchase_date = request.POST.get('purchase_date', '').strip() or invoice_date
+                insurance = request.POST.get('insurance', '').strip()
                 remarks = request.POST.get('remarks', '').strip()
                 invoice_photo = request.FILES.get('invoice_photo')
 
@@ -1271,8 +1272,8 @@ def purchase_page_view(request, purchase_id=None):
                     purchase.supplier = supplier
                     purchase.invoice_number = invoice_number
                     purchase.invoice_date = invoice_date
-                    if remarks:
-                        purchase.remarks = remarks
+                    purchase.insurance = insurance
+                    purchase.remarks = remarks
                     if invoice_photo:
                         purchase.invoice_photo = invoice_photo
                     elif request.POST.get('remove_invoice_photo') == '1':
@@ -1300,6 +1301,7 @@ def purchase_page_view(request, purchase_id=None):
                     invoice_number=invoice_number,
                     invoice_date=invoice_date,
                     invoice_photo=invoice_photo,
+                    insurance=insurance,
                     remarks=remarks,
                     created_by=request.user
                 )
@@ -1685,8 +1687,15 @@ def purchase_history(request):
 
     for purchase in purchases:
         purchase.computed_qty = sum(item.quantity for item in purchase.items.all())
-       
-        purchase.computed_total = sum(item.subtotal for item in purchase.items.all())
+
+        # Final purchase total = vehicle purchase amount + insurance.
+        # Empty/null/zero insurance keeps the normal purchase amount unchanged.
+        purchase_amount = sum(item.subtotal for item in purchase.items.all())
+        try:
+            insurance_amount = Decimal(str(purchase.insurance or '0').replace(',', '').replace('₹', '').strip())
+        except (InvalidOperation, TypeError, ValueError):
+            insurance_amount = Decimal('0.00')
+        purchase.computed_total = purchase_amount + insurance_amount
 
     return render(request, 'yakuza/purchase_history.html', {'purchases': purchases})
 
@@ -1699,7 +1708,11 @@ def purchase_history(request):
 def sales(request):
     branch = get_user_branch_context(request)
     sys_settings = Settings.load()
-    invoice_setting = InvoiceSetting.objects.filter(branch=branch).first() if branch else InvoiceSetting.objects.first()
+    invoice_setting = (
+        InvoiceSetting.objects.filter(branch=branch).first()
+        if branch
+        else InvoiceSetting.objects.first()
+    )
 
     # ૧ વર્ષથી જૂના Audit Logs ઓટોમેટિક ડિલીટ કરવા માટે
     one_year_ago = timezone.now() - timedelta(days=365)
@@ -1720,75 +1733,189 @@ def sales(request):
             controller_number = request.POST.get('controller_number', '').strip()
             payment_type = request.POST.get('payment_type', 'CASH')
 
-            if not customer_name or not contact_number or not model_name or price_val <= 0 or not chassis_number:
-                return JsonResponse({'status': 'error', 'message': 'Please fill all required fields correctly.'}, status=400)
+            if (
+                not customer_name
+                or not contact_number
+                or not model_name
+                or price_val <= 0
+                or not chassis_number
+            ):
+                return JsonResponse(
+                    {
+                        'status': 'error',
+                        'message': 'Please fill all required fields correctly.'
+                    },
+                    status=400
+                )
 
             existing_sale = None
+
             if sale_id and str(sale_id).isdigit():
-                existing_sale = get_object_or_404(Sales, id=int(sale_id))
-                if branch is not None and existing_sale.stock and existing_sale.stock.branch != branch:
-                    return JsonResponse({'status': 'error', 'message': 'Permission denied.'}, status=403)
+                existing_sale = get_object_or_404(
+                    Sales,
+                    id=int(sale_id)
+                )
 
-            payment_type_map = {'Cash': Sales.PaymentMethod.CASH, 'UPI': Sales.PaymentMethod.UPI, 'EMI': Sales.PaymentMethod.EMI}
-            payment_method = payment_type_map.get(payment_type, Sales.PaymentMethod.CASH)
+                if (
+                    branch is not None
+                    and existing_sale.stock
+                    and existing_sale.stock.branch != branch
+                ):
+                    return JsonResponse(
+                        {
+                            'status': 'error',
+                            'message': 'Permission denied.'
+                        },
+                        status=403
+                    )
 
-            
+            payment_type_map = {
+                'Cash': Sales.PaymentMethod.CASH,
+                'UPI': Sales.PaymentMethod.UPI,
+                'EMI': Sales.PaymentMethod.EMI
+            }
+
+            payment_method = payment_type_map.get(
+                payment_type,
+                Sales.PaymentMethod.CASH
+            )
+
             stock_obj = None
 
-            if existing_sale and existing_sale.stock and \
-               existing_sale.stock.model.model_name == model_name and \
-               existing_sale.stock.color.color_name == vehicle_color:
-                stock_qs = Stock.objects.select_for_update().filter(id=existing_sale.stock_id).select_related("model", "color", "branch")
+            if (
+                existing_sale
+                and existing_sale.stock
+                and existing_sale.stock.model.model_name == model_name
+                and existing_sale.stock.color.color_name == vehicle_color
+            ):
+                stock_qs = (
+                    Stock.objects
+                    .select_for_update()
+                    .filter(id=existing_sale.stock_id)
+                    .select_related(
+                        "model",
+                        "color",
+                        "branch"
+                    )
+                )
+
                 if branch is not None:
                     stock_qs = stock_qs.filter(branch=branch)
+
                 stock_obj = stock_qs.first()
+
                 if not stock_obj:
-                    return JsonResponse({'status': 'error', 'message': 'Vehicle is not available in current branch stock.'}, status=400)
+                    return JsonResponse(
+                        {
+                            'status': 'error',
+                            'message': 'Vehicle is not available in current branch stock.'
+                        },
+                        status=400
+                    )
+
             else:
-                stock_qs = Stock.objects.select_for_update().filter(
-                    model__model_name=model_name,
-                    color__color_name=vehicle_color,
-                    stock_status=Stock.StockStatus.AVAILABLE,
-                    chassis_number__isnull=True,
-                ).select_related("model", "color", "branch")
+                stock_qs = (
+                    Stock.objects
+                    .select_for_update()
+                    .filter(
+                        model__model_name=model_name,
+                        color__color_name=vehicle_color,
+                        stock_status=Stock.StockStatus.AVAILABLE,
+                        chassis_number__isnull=True,
+                    )
+                    .select_related(
+                        "model",
+                        "color",
+                        "branch"
+                    )
+                )
+
                 if branch is not None:
                     stock_qs = stock_qs.filter(branch=branch)
+
                 stock_obj = stock_qs.first()
 
                 if not stock_obj:
-                    return JsonResponse({'status': 'error', 'message': 'Vehicle is not available in current branch stock.'}, status=400)
+                    return JsonResponse(
+                        {
+                            'status': 'error',
+                            'message': 'Vehicle is not available in current branch stock.'
+                        },
+                        status=400
+                    )
 
-            # chassis_number is unique across all Stock -- make sure the
-            # submitted number isn't already assigned to a different unit.
-            if Stock.objects.filter(chassis_number=chassis_number).exclude(id=stock_obj.id).exists():
-                return JsonResponse({'status': 'error', 'message': 'This chassis number is already assigned to another vehicle.'}, status=400)
+            # chassis_number is unique across all Stock
+            if (
+                Stock.objects
+                .filter(chassis_number=chassis_number)
+                .exclude(id=stock_obj.id)
+                .exists()
+            ):
+                return JsonResponse(
+                    {
+                        'status': 'error',
+                        'message': 'This chassis number is already assigned to another vehicle.'
+                    },
+                    status=400
+                )
 
-            if stock_obj.stock_status == Stock.StockStatus.SOLD and not (existing_sale and stock_obj.sale_id == existing_sale.id):
-                return JsonResponse({'status': 'error', 'message': 'Selected vehicle stock is already sold.'}, status=400)
+            if (
+                stock_obj.stock_status == Stock.StockStatus.SOLD
+                and not (
+                    existing_sale
+                    and stock_obj.sale_id == existing_sale.id
+                )
+            ):
+                return JsonResponse(
+                    {
+                        'status': 'error',
+                        'message': 'Selected vehicle stock is already sold.'
+                    },
+                    status=400
+                )
 
-            # Assign / correct the physical vehicle identifiers on this unit.
+            # Assign / correct the physical vehicle identifiers
             stock_obj.chassis_number = chassis_number
             stock_obj.battery_number = battery_number
             stock_obj.motor_number = motor_number
             stock_obj.controller_number = controller_number
 
             if existing_sale:
+
                 # --- BILL PRICE CHANGE AUDIT LOG CHECK ---
                 old_price = existing_sale.selling_price
+
                 if old_price != price_val:
-                    old_price_str = f"₹{old_price:,.0f}" if old_price == int(old_price) else f"₹{old_price:,.2f}"
-                    new_price_str = f"₹{price_val:,.0f}" if price_val == int(price_val) else f"₹{price_val:,.2f}"
+                    old_price_str = (
+                        f"₹{old_price:,.0f}"
+                        if old_price == int(old_price)
+                        else f"₹{old_price:,.2f}"
+                    )
+
+                    new_price_str = (
+                        f"₹{price_val:,.0f}"
+                        if price_val == int(price_val)
+                        else f"₹{price_val:,.2f}"
+                    )
 
                     AuditLog.objects.create(
-                        user=request.user if request.user.is_authenticated else None,
+                        user=request.user
+                        if request.user.is_authenticated
+                        else None,
                         branch=branch,
                         module="Sales",
                         action="BILL_PRICE_CHANGE",
-                        old_value={"price": old_price_str},
-                        new_value={"price": new_price_str}
+                        old_value={
+                            "price": old_price_str
+                        },
+                        new_value={
+                            "price": new_price_str
+                        }
                     )
+
                 sale = existing_sale
                 old_stock = sale.stock
+
                 if old_stock and old_stock != stock_obj:
                     old_stock.stock_status = Stock.StockStatus.AVAILABLE
                     old_stock.sale = None
@@ -1801,15 +1928,43 @@ def sales(request):
                 sale.selling_price = price_val
                 sale.stock = stock_obj
                 sale.save()
-               
+
             else:
-                prefix = (invoice_setting.invoice_prefix if invoice_setting and invoice_setting.invoice_prefix else (sys_settings.invoice_prefix if sys_settings else "INV-")) or "INV-"
+                # ==========================================================
+                # INVOICE PREFIX
+                # Branch InvoiceSetting has highest priority.
+                # System Settings is used only when branch prefix is empty.
+                # ==========================================================
+
+                prefix = ""
+
+                if invoice_setting:
+                    prefix = (
+                        invoice_setting.invoice_prefix or ""
+                    ).strip()
+
+                if not prefix and sys_settings:
+                    prefix = (
+                        sys_settings.invoice_prefix or ""
+                    ).strip()
+
+                if not prefix:
+                    prefix = "INV-"
+
                 year = timezone.now().year
 
                 if prefix.endswith(f"{year}-"):
-                    auto_inv = f"{prefix}{(Sales.objects.count() + 1):04d}"
+                    auto_inv = (
+                        f"{prefix}"
+                        f"{(Sales.objects.count() + 1):04d}"
+                    )
                 else:
-                    auto_inv = f"{prefix}{year}-{(Sales.objects.count() + 1):04d}"
+                    auto_inv = (
+                        f"{prefix}"
+                        f"{year}-"
+                        f"{(Sales.objects.count() + 1):04d}"
+                    )
+
                 sale = Sales.objects.create(
                     stock=stock_obj,
                     customer_name=customer_name,
@@ -1820,22 +1975,26 @@ def sales(request):
                     selling_price=price_val,
                     created_by=request.user
                 )
-                         
 
             stock_obj.stock_status = Stock.StockStatus.SOLD
             stock_obj.sale = sale
             stock_obj.save()
-            
-           
-            b_name = branch.branch_name if branch else "Main Branch"
 
-            # Customer must always be resolved inside the current branch.
+            b_name = (
+                branch.branch_name
+                if branch
+                else "Main Branch"
+            )
+
+            # Customer must always be resolved inside current branch
             customer_qs = Customer.objects.filter(
                 mobile_number=contact_number
             )
 
             if branch is not None:
-                customer_qs = customer_qs.filter(branch=branch)
+                customer_qs = customer_qs.filter(
+                    branch=branch
+                )
 
             existing_customer = customer_qs.first()
 
@@ -1844,15 +2003,17 @@ def sales(request):
                 existing_customer.aadhar_number = aadhar_number
                 existing_customer.branch = branch
                 existing_customer.branch_name = b_name
-                existing_customer.model_name = stock_obj.model.model_name
+                existing_customer.model_name = (
+                    stock_obj.model.model_name
+                )
                 existing_customer.price = price_val
-                existing_customer.payment_mode = sale.get_payment_method_display()
+                existing_customer.payment_mode = (
+                    sale.get_payment_method_display()
+                )
                 existing_customer.save()
 
-                
-
             else:
-                customer = Customer.objects.create(
+                Customer.objects.create(
                     mobile_number=contact_number,
                     customer_name=customer_name,
                     aadhar_number=aadhar_number,
@@ -1863,75 +2024,216 @@ def sales(request):
                     payment_mode=sale.get_payment_method_display()
                 )
 
-               
-            return JsonResponse({
-                'status': 'success',
-                'sale_id': sale.id,
-                'invoice_no': sale.invoice_no,
-                'customer_name': sale.customer_name,
-                'mobile_number': sale.mobile_number,
-                'model_name': stock_obj.model.model_name,
-                'color': stock_obj.color.color_name if stock_obj.color else '',
-                'price': f"{price_val:.2f}",
-                'sgst': f"{getattr(sale, 'sgst', 0):.2f}",
-                'cgst': f"{getattr(sale, 'cgst', 0):.2f}",
-                'grand_total': f"{getattr(sale, 'grand_total'):.2f}",
-                'chassis_number': stock_obj.chassis_number,
-                'battery_number': stock_obj.battery_number or '',
-                'motor_number': stock_obj.motor_number or '',
-                'controller_number': stock_obj.controller_number or '',
-                'payment_method': sale.get_payment_method_display(),
-                'created_at': sale.created_at.strftime('%Y-%m-%d')
-            })
+            return JsonResponse(
+                {
+                    'status': 'success',
+                    'sale_id': sale.id,
+                    'invoice_no': sale.invoice_no,
+                    'customer_name': sale.customer_name,
+                    'mobile_number': sale.mobile_number,
+                    'model_name': stock_obj.model.model_name,
+                    'color': (
+                        stock_obj.color.color_name
+                        if stock_obj.color
+                        else ''
+                    ),
+                    'price': f"{price_val:.2f}",
+                    'sgst': f"{getattr(sale, 'sgst', 0):.2f}",
+                    'cgst': f"{getattr(sale, 'cgst', 0):.2f}",
+                    'grand_total': f"{getattr(sale, 'grand_total'):.2f}",
+                    'chassis_number': stock_obj.chassis_number,
+                    'battery_number': (
+                        stock_obj.battery_number or ''
+                    ),
+                    'motor_number': (
+                        stock_obj.motor_number or ''
+                    ),
+                    'controller_number': (
+                        stock_obj.controller_number or ''
+                    ),
+                    'payment_method': (
+                        sale.get_payment_method_display()
+                    ),
+                    'created_at': sale.created_at.strftime(
+                        '%Y-%m-%d'
+                    )
+                }
+            )
 
         except Exception as e:
             transaction.set_rollback(True)
-            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 
-    # --- GET REQUEST (VIEW / EDIT FORM) ---
+            return JsonResponse(
+                {
+                    'status': 'error',
+                    'message': str(e)
+                },
+                status=400
+            )
+
+    # ==========================================================
+    # GET REQUEST (VIEW / EDIT FORM)
+    # ==========================================================
+
     edit_sale = None
-    edit_id = request.GET.get('edit') or request.GET.get('sale_id')
+
+    edit_id = (
+        request.GET.get('edit')
+        or request.GET.get('sale_id')
+    )
+
     if edit_id and str(edit_id).isdigit():
-        edit_sale = Sales.objects.filter(id=int(edit_id)).select_related('stock', 'stock__model', 'stock__color').first()
-        if edit_sale and branch is not None and edit_sale.stock and edit_sale.stock.branch != branch:
+        edit_sale = (
+            Sales.objects
+            .filter(id=int(edit_id))
+            .select_related(
+                'stock',
+                'stock__model',
+                'stock__color'
+            )
+            .first()
+        )
+
+        if (
+            edit_sale
+            and branch is not None
+            and edit_sale.stock
+            and edit_sale.stock.branch != branch
+        ):
             edit_sale = None
 
-    prefix = (invoice_setting.invoice_prefix if invoice_setting and invoice_setting.invoice_prefix else (sys_settings.invoice_prefix if sys_settings else "INV-")) or "INV-"
+    # ==========================================================
+    # INVOICE PREFIX FOR NEW SALE / EDIT FORM
+    # ==========================================================
+
+    prefix = ""
+
+    if invoice_setting:
+        prefix = (
+            invoice_setting.invoice_prefix or ""
+        ).strip()
+
+    if not prefix and sys_settings:
+        prefix = (
+            sys_settings.invoice_prefix or ""
+        ).strip()
+
+    if not prefix:
+        prefix = "INV-"
+
     year = timezone.now().year
 
     if edit_sale:
+        # Existing invoice number must remain unchanged
         auto_invoice_no = edit_sale.invoice_no
+
     elif prefix.endswith(f"{year}-"):
-        auto_invoice_no = f"{prefix}{(Sales.objects.count() + 1):04d}"
+        auto_invoice_no = (
+            f"{prefix}"
+            f"{(Sales.objects.count() + 1):04d}"
+        )
+
     else:
-        auto_invoice_no = f"{prefix}{year}-{(Sales.objects.count() + 1):04d}"
+        auto_invoice_no = (
+            f"{prefix}"
+            f"{year}-"
+            f"{(Sales.objects.count() + 1):04d}"
+        )
 
-    branch_name = branch.branch_name if branch else "All Branches"
-    billing_phone = (invoice_setting.phone if invoice_setting and invoice_setting.phone else (branch.phone if branch else "")) if branch else ""
-    billing_gstin = (invoice_setting.gstin if invoice_setting and invoice_setting.gstin else (branch.gst_number if branch else "")) if branch else ""
+    branch_name = (
+        branch.branch_name
+        if branch
+        else "All Branches"
+    )
 
-    # --- MODEL & COLOR DROPDOWNS MATHE AVAILABLE IDs FETCH ---
-    available_stock_qs = Stock.objects.filter(stock_status=Stock.StockStatus.AVAILABLE)
+    billing_phone = (
+        (
+            invoice_setting.phone
+            if invoice_setting
+            and invoice_setting.phone
+            else (
+                branch.phone
+                if branch
+                else ""
+            )
+        )
+        if branch
+        else ""
+    )
+
+    billing_gstin = (
+        (
+            invoice_setting.gstin
+            if invoice_setting
+            and invoice_setting.gstin
+            else (
+                branch.gst_number
+                if branch
+                else ""
+            )
+        )
+        if branch
+        else ""
+    )
+
+    # ==========================================================
+    # MODEL & COLOR DROPDOWNS
+    # ==========================================================
+
+    available_stock_qs = Stock.objects.filter(
+        stock_status=Stock.StockStatus.AVAILABLE
+    )
+
     if branch is not None:
-        available_stock_qs = available_stock_qs.filter(branch=branch)
+        available_stock_qs = available_stock_qs.filter(
+            branch=branch
+        )
 
-    available_model_ids = set(available_stock_qs.values_list('model_id', flat=True).distinct())
-    available_color_ids = set(available_stock_qs.values_list('color_id', flat=True).distinct())
+    available_model_ids = set(
+        available_stock_qs
+        .values_list(
+            'model_id',
+            flat=True
+        )
+        .distinct()
+    )
+
+    available_color_ids = set(
+        available_stock_qs
+        .values_list(
+            'color_id',
+            flat=True
+        )
+        .distinct()
+    )
 
     if edit_sale and edit_sale.stock:
-        if edit_sale.stock.model_id:
-            available_model_ids.add(edit_sale.stock.model_id)
-        if edit_sale.stock.color_id:
-            available_color_ids.add(edit_sale.stock.color_id)
 
-    models_qs = VehicleModel.objects.filter(id__in=available_model_ids, is_active=True)
-    colors_qs = VehicleColor.objects.filter(id__in=available_color_ids, is_active=True)
+        if edit_sale.stock.model_id:
+            available_model_ids.add(
+                edit_sale.stock.model_id
+            )
+
+        if edit_sale.stock.color_id:
+            available_color_ids.add(
+                edit_sale.stock.color_id
+            )
+
+    models_qs = VehicleModel.objects.filter(
+        id__in=available_model_ids,
+        is_active=True
+    )
+
+    colors_qs = VehicleColor.objects.filter(
+        id__in=available_color_ids,
+        is_active=True
+    )
 
     context = {
         'invoice_setting': invoice_setting,
         'sys_settings': sys_settings,
         'branch': branch,
-        'branch_name': branch_name,  
+        'branch_name': branch_name,
         'billing_phone': billing_phone,
         'billing_gstin': billing_gstin,
         'edit_sale': edit_sale,
@@ -1939,8 +2241,12 @@ def sales(request):
         'models': models_qs,
         'colors': colors_qs,
     }
-    return render(request, 'yakuza/sales.html', context)
 
+    return render(
+        request,
+        'yakuza/sales.html',
+        context
+    )
 
 @login_required
 @require_GET

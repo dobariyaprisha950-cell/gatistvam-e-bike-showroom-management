@@ -90,6 +90,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const supplierSelect = document.getElementById('id_supplier');
     const invoiceNumberInput = document.getElementById('id_invoice_number');
     const invoiceDateInput = document.getElementById('id_invoice_date');
+    const insuranceInput = document.getElementById('id_insurance');
+    if (insuranceInput) {
+        insuranceInput.addEventListener('input', updateSummary);
+    }
+    const notesInput = document.getElementById('id_notes');
 
     const entryModelSelect = document.getElementById('entry_model');
     const btnEditModelName = document.getElementById('btnEditModelName');
@@ -551,8 +556,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     // Reflect the corrected spelling in any Vehicle Entries rows
                     // already added to this purchase that reference this model.
                     vehicleEntries.forEach(e => {
-                        if (String(e.modelId) === String(editingModelId)) {
+                        if (String(e.modelId || e.model_id) === String(editingModelId)) {
                             e.modelName = correctedName;
+                            e.model_name = correctedName;
                         }
                     });
                     renderVehicleTable();
@@ -674,14 +680,15 @@ document.addEventListener('DOMContentLoaded', function () {
                     // Color Allocation rows and in already-added Vehicle
                     // Entries that reference this color.
                     currentModalColorRows.forEach(r => {
-                        if (String(r.colorId) === String(editingColorId)) {
+                        if (String(r.colorId || r.color_id) === String(editingColorId)) {
                             r.colorName = correctedName;
                         }
                     });
                     vehicleEntries.forEach(e => {
-                        (e.colorAllocations || []).forEach(c => {
-                            if (String(c.colorId) === String(editingColorId)) {
+                        (e.colorAllocations || e.color_allocations || []).forEach(c => {
+                            if (String(c.colorId || c.color_id) === String(editingColorId)) {
                                 c.colorName = correctedName;
+                                c.color_name = correctedName;
                             }
                         });
                     });
@@ -850,15 +857,18 @@ document.addEventListener('DOMContentLoaded', function () {
 
         vehicleEntries.forEach((entry, idx) => {
             const isAllocated = isColorAllocationComplete(entry);
+            const modelName = entry.modelName || entry.model_name || '';
+            const unitPrice = entry.unitPrice !== undefined ? entry.unitPrice : entry.unit_price;
+            const totalAmount = entry.totalAmount !== undefined ? entry.totalAmount : entry.total_amount;
 
             // Desktop Row
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td style="text-align: center; font-weight: 600; color: #64748b;">${idx + 1}</td>
-                <td><strong>${escapeHtml(entry.modelName)}</strong></td>
+                <td><strong>${escapeHtml(modelName)}</strong></td>
                 <td style="text-align: center;"><strong>${entry.quantity}</strong></td>
-                <td style="text-align: right;">${formatINR(entry.unitPrice)}</td>
-                <td style="text-align: right; font-weight: 600; color: #0f172a;">${formatINR(entry.totalAmount)}</td>
+                <td style="text-align: right;">${formatINR(unitPrice)}</td>
+                <td style="text-align: right; font-weight: 600; color: #0f172a;">${formatINR(totalAmount)}</td>
                 <td style="text-align: center;">
                     <div class="action-icon-group">
                         <button type="button" class="btn-icon-action btn-color-alloc ${isAllocated ? 'alloc-done' : ''}" data-id="${entry.id}" title="Color Allocation">
@@ -881,7 +891,7 @@ document.addEventListener('DOMContentLoaded', function () {
             card.className = 'vehicle-entry-card-item';
             card.innerHTML = `
                 <div class="v-card-header">
-                    <span class="v-card-title">#${idx + 1} ${escapeHtml(entry.modelName)}</span>
+                    <span class="v-card-title">#${idx + 1} ${escapeHtml(modelName)}</span>
                     <div class="action-icon-group">
                         <button type="button" class="btn-icon-action btn-color-alloc ${isAllocated ? 'alloc-done' : ''}" data-id="${entry.id}" title="Color Allocation">
                             <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"></circle><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"></circle><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"></circle><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"></circle><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.92 0 1.7-.71 1.7-1.63 0-.44-.18-.85-.47-1.16-.29-.3-.47-.72-.47-1.21 0-.92.72-1.63 1.63-1.63H16c3.31 0 6-2.69 6-6 0-4.97-4.48-9-10-9z"></path></svg>
@@ -902,11 +912,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     </div>
                     <div>
                         <span class="v-card-metric-label">Purchase Price</span>
-                        <span class="v-card-metric-val">${formatINR(entry.unitPrice)}</span>
+                        <span class="v-card-metric-val">${formatINR(unitPrice)}</span>
                     </div>
                     <div>
                         <span class="v-card-metric-label">Total Amount</span>
-                        <span class="v-card-metric-val green-text">${formatINR(entry.totalAmount)}</span>
+                        <span class="v-card-metric-val green-text">${formatINR(totalAmount)}</span>
                     </div>
                     <div>
                         <span class="v-card-metric-label">Color Allocation</span>
@@ -934,8 +944,9 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function isColorAllocationComplete(entry) {
-        if (!entry.colorAllocations || entry.colorAllocations.length === 0) return false;
-        const totalAllocated = entry.colorAllocations.reduce((sum, item) => sum + (parseInt(item.quantity, 10) || 0), 0);
+        const allocs = entry.colorAllocations || entry.color_allocations;
+        if (!allocs || allocs.length === 0) return false;
+        const totalAllocated = allocs.reduce((sum, item) => sum + (parseInt(item.quantity, 10) || 0), 0);
         return totalAllocated === entry.quantity;
     }
 
@@ -944,9 +955,9 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!entry) return;
 
         editingEntryId = id;
-        entryModelSelect.value = entry.modelId;
+        entryModelSelect.value = entry.modelId || entry.model_id || '';
         entryQuantityInput.value = entry.quantity;
-        entryUnitPriceInput.value = entry.unitPrice;
+        entryUnitPriceInput.value = entry.unitPrice !== undefined ? entry.unitPrice : entry.unit_price;
 
         if (btnAddVehicleBtnText) btnAddVehicleBtnText.textContent = 'Update Entry';
         btnAddVehicleRow.classList.add('btn-editing');
@@ -994,12 +1005,18 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!entry) return;
 
         activeColorAllocEntryId = entryId;
-        if (modalAllocModelName) modalAllocModelName.textContent = entry.modelName;
+        const modelName = entry.modelName || entry.model_name || '';
+        if (modalAllocModelName) modalAllocModelName.textContent = modelName;
         if (modalAllocTotalQty) modalAllocTotalQty.textContent = entry.quantity;
         if (colorModalError) colorModalError.classList.add('d-none');
 
-        currentModalColorRows = (entry.colorAllocations && entry.colorAllocations.length > 0)
-            ? JSON.parse(JSON.stringify(entry.colorAllocations))
+        const allocs = entry.colorAllocations || entry.color_allocations;
+        currentModalColorRows = (allocs && allocs.length > 0)
+            ? JSON.parse(JSON.stringify(allocs)).map(c => ({
+                colorId: c.colorId || c.color_id || c.color || '',
+                colorName: c.colorName || c.color_name || '',
+                quantity: c.quantity
+            }))
             : [{ colorId: '', quantity: 1 }];
 
         renderModalColorRows();
@@ -1164,10 +1181,13 @@ document.addEventListener('DOMContentLoaded', function () {
     // ==========================================
     function updateSummary() {
         const totalQty = vehicleEntries.reduce((sum, e) => sum + e.quantity, 0);
-        const totalAmt = vehicleEntries.reduce((sum, e) => sum + e.totalAmount, 0);
+        const totalAmt = vehicleEntries.reduce((sum, e) => sum + (e.totalAmount !== undefined ? e.totalAmount : (e.total_amount || 0)), 0);
+        const insuranceVal = parseFloat(insuranceInput ? insuranceInput.value : 0);
+        const insurance = (isNaN(insuranceVal) || insuranceVal < 0) ? 0 : insuranceVal;
+        const finalTotalAmount = totalAmt + insurance;
 
         if (summaryTotalQty) summaryTotalQty.textContent = totalQty;
-        if (summaryTotalAmount) summaryTotalAmount.textContent = formatINR(totalAmt);
+        if (summaryTotalAmount) summaryTotalAmount.textContent = formatINR(finalTotalAmount);
     }
 
     function syncHiddenJson() {
@@ -1222,20 +1242,24 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             for (const entry of vehicleEntries) {
-                if (!entry.modelId) {
-                    showSubmitError(`Invalid model selected for entry "${entry.modelName}".`);
+                const modelId = entry.modelId || entry.model_id;
+                const modelName = entry.modelName || entry.model_name || 'Vehicle Model';
+                const unitPrice = entry.unitPrice !== undefined ? entry.unitPrice : (entry.unit_price !== undefined ? entry.unit_price : entry.purchase_price);
+
+                if (!modelId) {
+                    showSubmitError(`Invalid model selected for entry "${modelName}".`);
                     return;
                 }
                 if (entry.quantity <= 0) {
-                    showSubmitError(`Quantity must be greater than 0 for model "${entry.modelName}".`);
+                    showSubmitError(`Quantity must be greater than 0 for model "${modelName}".`);
                     return;
                 }
-                if (entry.unitPrice <= 0) {
-                    showSubmitError(`Purchase Price must be greater than 0 for model "${entry.modelName}".`);
+                if (unitPrice <= 0) {
+                    showSubmitError(`Purchase Price must be greater than 0 for model "${modelName}".`);
                     return;
                 }
                 if (!isColorAllocationComplete(entry)) {
-                    showSubmitError(`Color Allocation incomplete for model "${entry.modelName}". Click the 🎨 icon to allocate colors.`);
+                    showSubmitError(`Color Allocation incomplete for model "${modelName}". Click the 🎨 icon to allocate colors.`);
                     return;
                 }
             }
@@ -1246,6 +1270,8 @@ document.addEventListener('DOMContentLoaded', function () {
             formData.append('supplier_id', supplierVal);
             formData.append('invoice_number', invoiceNum);
             formData.append('invoice_date', invoiceDate);
+            formData.append('insurance', insuranceInput ? insuranceInput.value.trim() : '');
+            formData.append('remarks', notesInput ? notesInput.value.trim() : '');
             if (purchaseForm && purchaseForm.dataset.purchaseId) {
                 formData.append('purchase_id', purchaseForm.dataset.purchaseId);
             }
@@ -1255,15 +1281,15 @@ document.addEventListener('DOMContentLoaded', function () {
             
 
             const itemsPayload = vehicleEntries.map(e => ({
-                vehicle_model: e.modelId,
-                model_id: e.modelId,
+                vehicle_model: e.modelId || e.model_id,
+                model_id: e.modelId || e.model_id,
                 quantity: e.quantity,
-                unit_price: e.unitPrice,
-                purchase_price: e.unitPrice,
-                total_amount: e.totalAmount,
-                color_allocations: e.colorAllocations.map(c => ({
-                    color: c.colorId,
-                    color_id: c.colorId,
+                unit_price: e.unitPrice !== undefined ? e.unitPrice : (e.unit_price !== undefined ? e.unit_price : e.purchase_price),
+                purchase_price: e.unitPrice !== undefined ? e.unitPrice : (e.unit_price !== undefined ? e.unit_price : e.purchase_price),
+                total_amount: e.totalAmount !== undefined ? e.totalAmount : e.total_amount,
+                color_allocations: (e.colorAllocations || e.color_allocations || []).map(c => ({
+                    color: c.colorId || c.color_id,
+                    color_id: c.colorId || c.color_id,
                     quantity: c.quantity
                 }))
             }));
@@ -1319,6 +1345,8 @@ document.addEventListener('DOMContentLoaded', function () {
         if (supplierSelect) supplierSelect.value = '';
         if (invoiceNumberInput) invoiceNumberInput.value = '';
         if (invoiceDateInput) invoiceDateInput.value = '';
+        if (insuranceInput) insuranceInput.value = '';
+        if (notesInput) notesInput.value = '';
          
         if (fileInput) fileInput.value = '';
         if (dropzoneBox) dropzoneBox.classList.remove('d-none');

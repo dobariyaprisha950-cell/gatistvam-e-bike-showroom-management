@@ -111,6 +111,7 @@ class Purchase(models.Model):
     invoice_number = models.CharField(max_length=100)
     invoice_date = models.DateField()
     invoice_photo = models.ImageField(upload_to='invoices/purchase/', blank=True, null=True)
+    insurance = models.CharField(max_length=255, blank=True, null=True)
     remarks = models.TextField(blank=True, null=True)
     created_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name='created_purchases')
     created_at = models.DateTimeField(auto_now_add=True)

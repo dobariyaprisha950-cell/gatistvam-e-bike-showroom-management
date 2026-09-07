@@ -47,7 +47,7 @@ class VehicleModelForm(forms.ModelForm):
 class PurchaseForm(forms.ModelForm):
     class Meta:
         model = Purchase
-        fields = ['purchase_date', 'supplier', 'branch', 'invoice_number', 'invoice_date', 'invoice_photo', 'remarks']
+        fields = ['purchase_date', 'supplier', 'branch', 'invoice_number', 'invoice_date', 'invoice_photo', 'insurance', 'remarks']
         widgets = {
             'purchase_date': forms.DateInput(attrs={'type': 'date'}),
             'invoice_date': forms.DateInput(attrs={'type': 'date'}),

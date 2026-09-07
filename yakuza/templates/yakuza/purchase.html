@@ -108,6 +108,11 @@
 
                         
                         <div class="form-field-item">
+                            <label class="field-label">Insurance (Optional)</label>
+                            <input type="text" id="id_insurance" name="insurance" class="form-input" placeholder="Enter insurance details..." value="{{ purchase.insurance|default:'' }}">
+                        </div>
+
+                        <div class="form-field-item">
                             <label class="field-label">Notes (Optional)</label>
                             <input type="text" id="id_notes" name="notes" class="form-input" placeholder="Enter notes..." value="{{ purchase.remarks|default:'' }}">
                         </div>

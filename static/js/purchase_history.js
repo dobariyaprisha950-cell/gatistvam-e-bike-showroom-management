@@ -15,6 +15,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const modalSupplier = document.getElementById('modalSupplier');
     const modalQty = document.getElementById('modalQty');
     const modalAmount = document.getElementById('modalAmount');
+    const modalInsurance = document.getElementById('modalInsurance');
+    const modalNotes = document.getElementById('modalNotes');
     const modalPreviewBox = document.getElementById('modalPreviewBox');
 
     function filterTable() {
@@ -79,6 +81,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (modalSupplier) modalSupplier.textContent = viewBtn.getAttribute('data-supplier');
             if (modalQty) modalQty.textContent = viewBtn.getAttribute('data-qty');
             if (modalAmount) modalAmount.textContent = viewBtn.getAttribute('data-amount');
+            if (modalInsurance) modalInsurance.textContent = viewBtn.getAttribute('data-insurance') || '-';
+            if (modalNotes) modalNotes.textContent = viewBtn.getAttribute('data-notes') || '-';
 
             const imgSrc = viewBtn.getAttribute('data-img');
             if (modalPreviewBox) {

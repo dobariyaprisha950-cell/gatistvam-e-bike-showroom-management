@@ -70,6 +70,8 @@
                                         data-supplier="{{ purchase.supplier.supplier_name }}"
                                         data-qty="{{ purchase.computed_qty }} Items"
                                         data-amount="₹ {{ purchase.computed_total|floatformat:2 }}"
+                                        data-insurance="{{ purchase.insurance|default:'' }}"
+                                        data-notes="{{ purchase.remarks|default:'' }}"
                                         {% if purchase.invoice_photo %}data-img="{{ purchase.invoice_photo.url }}"{% endif %}>
                                     View
                                 </button>
@@ -131,6 +133,14 @@
                         <div class="erp-detail-group">
                             <span class="erp-detail-label">Total Amount</span>
                             <span class="erp-detail-value erp-text-primary" id="modalAmount">-</span>
+                        </div>
+                        <div class="erp-detail-group">
+                            <span class="erp-detail-label">Insurance</span>
+                            <span class="erp-detail-value" id="modalInsurance">-</span>
+                        </div>
+                        <div class="erp-detail-group">
+                            <span class="erp-detail-label">Notes</span>
+                            <span class="erp-detail-value" id="modalNotes">-</span>
                         </div>
                     </div>
                     <div class="erp-modal-preview">
