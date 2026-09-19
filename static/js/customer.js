@@ -531,4 +531,148 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         });
     }
+
+    // -------------------------------------------------------------
+    // 🗑️ 6. Delete Bill (Permanent) Flow
+    // -------------------------------------------------------------
+    const deleteBillModal = document.getElementById("deleteBillModal");
+    const cancelDeleteBillBtn = document.getElementById("cancelDeleteBillBtn");
+    const confirmDeleteBillBtn = document.getElementById("confirmDeleteBillBtn");
+    const deleteInvoiceBtn = document.getElementById("deleteInvoiceBtn");
+
+    let pendingDeleteSaleId = null;
+    let pendingDeleteRow = null;
+
+    function showResultPopup(message, isSuccess) {
+        const existingPopup = document.getElementById("billResultPopup");
+        if (existingPopup) existingPopup.remove();
+
+        const popup = document.createElement("div");
+        popup.id = "billResultPopup";
+
+        popup.innerHTML = `
+            <div class="invoice-message-backdrop">
+                <div class="invoice-message-box">
+                    <div class="invoice-message-icon" style="${isSuccess ? 'background:#dcfce7;color:#16a34a;' : ''}">${isSuccess ? '&#10003;' : '!'}</div>
+                    <div class="invoice-message-title"></div>
+                    <button type="button" id="billResultOk">OK</button>
+                </div>
+            </div>
+        `;
+
+        popup.querySelector(".invoice-message-title").textContent = message;
+
+        document.body.appendChild(popup);
+
+        const okButton = document.getElementById("billResultOk");
+        if (okButton) {
+            okButton.addEventListener("click", function () {
+                popup.remove();
+            });
+        }
+    }
+
+    function openDeleteBillModal(saleId, rowEl) {
+        if (!saleId) {
+            alert("Unable to identify this bill.");
+            return;
+        }
+        pendingDeleteSaleId = saleId;
+        pendingDeleteRow = rowEl || (customerTable ? customerTable.querySelector(`tr[data-sale-id="${saleId}"]`) : null);
+        if (deleteBillModal) deleteBillModal.style.display = "flex";
+    }
+
+    function closeDeleteBillModal() {
+        if (deleteBillModal) deleteBillModal.style.display = "none";
+        pendingDeleteSaleId = null;
+        pendingDeleteRow = null;
+    }
+
+    async function confirmDeleteBill() {
+        if (!pendingDeleteSaleId) {
+            closeDeleteBillModal();
+            return;
+        }
+
+        const saleId = pendingDeleteSaleId;
+        const rowEl = pendingDeleteRow;
+
+        if (confirmDeleteBillBtn) {
+            confirmDeleteBillBtn.disabled = true;
+            confirmDeleteBillBtn.textContent = "Deleting...";
+        }
+
+        try {
+            const csrfElement = document.querySelector('[name=csrfmiddlewaretoken]');
+            const csrfToken = csrfElement ? csrfElement.value : getCookie("csrftoken");
+
+            const response = await fetch(`/customer/delete-bill/${saleId}/`, {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": csrfToken,
+                    "X-Requested-With": "XMLHttpRequest"
+                }
+            });
+
+            const result = await response.json();
+
+            if (!response.ok || result.status !== "success") {
+                throw new Error(result.message || "Unable to delete this bill.");
+            }
+
+            // Bill is gone -- remove its row so it no longer appears,
+            // without needing a full page reload.
+            if (rowEl && rowEl.parentNode) {
+                rowEl.parentNode.removeChild(rowEl);
+            }
+
+            // If the invoice preview modal is open for the bill we just
+            // deleted, close it too.
+            if (currentSaleId && String(currentSaleId) === String(saleId)) {
+                closeModal();
+            }
+
+            closeDeleteBillModal();
+            showResultPopup(result.message || "Bill deleted successfully.", true);
+
+        } catch (error) {
+            console.error("DELETE BILL ERROR:", error);
+            closeDeleteBillModal();
+            showResultPopup(error.message || "Error deleting bill.", false);
+        } finally {
+            if (confirmDeleteBillBtn) {
+                confirmDeleteBillBtn.disabled = false;
+                confirmDeleteBillBtn.textContent = "Delete";
+            }
+        }
+    }
+
+    // Delete button on each row of the Customer Directory table.
+    document.addEventListener("click", function (e) {
+        const delBtn = e.target.closest(".delete-bill-btn");
+        if (delBtn) {
+            const row = delBtn.closest("tr");
+            openDeleteBillModal(row ? row.dataset.saleId : delBtn.dataset.id, row);
+        }
+    });
+
+    // Delete button inside the Invoice Preview modal footer.
+    if (deleteInvoiceBtn) {
+        deleteInvoiceBtn.addEventListener("click", function () {
+            if (!currentSaleId) {
+                alert("Unable to identify this sale.");
+                return;
+            }
+            openDeleteBillModal(currentSaleId, null);
+        });
+    }
+
+    if (cancelDeleteBillBtn) cancelDeleteBillBtn.addEventListener("click", closeDeleteBillModal);
+    if (confirmDeleteBillBtn) confirmDeleteBillBtn.addEventListener("click", confirmDeleteBill);
+
+    if (deleteBillModal) {
+        deleteBillModal.addEventListener("click", function (e) {
+            if (e.target === deleteBillModal) closeDeleteBillModal();
+        });
+    }
 });

@@ -122,6 +122,15 @@
     background-color: #15803d;
 }
 
+.btn-danger {
+    background-color: #dc2626;
+    color: #ffffff;
+}
+
+.btn-danger:hover {
+    background-color: #b91c1c;
+}
+
 .table-responsive {
     width: 100%;
     overflow-x: auto;
@@ -602,4 +611,54 @@
         opacity: 1;
         transform: scale(1);
     }
+}
+
+/* =========================================================
+   DELETE BILL CONFIRMATION MODAL
+   (reuses .invoice-message-backdrop / .invoice-message-box /
+   .invoice-message-icon / .invoice-message-title styling above)
+   ========================================================= */
+
+.invoice-message-text {
+    font-size: 13px;
+    color: #4b5563;
+    line-height: 1.5;
+    margin: 0 0 20px 0;
+}
+
+.invoice-message-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+/* Scoped under .invoice-message-box so these win over the more generic
+   ".invoice-message-box button" rule defined further up this file. */
+.invoice-message-box .btn-modal-secondary,
+.invoice-message-box .btn-modal-danger {
+    min-width: 90px;
+    padding: 9px 22px;
+    border: none;
+    border-radius: 7px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.invoice-message-box .btn-modal-secondary {
+    background: #64748b;
+    color: #ffffff;
+}
+
+.invoice-message-box .btn-modal-secondary:hover {
+    background: #475569;
+}
+
+.invoice-message-box .btn-modal-danger {
+    background: #dc2626;
+    color: #ffffff;
+}
+
+.invoice-message-box .btn-modal-danger:hover {
+    background: #b91c1c;
 }

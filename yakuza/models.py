@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models, transaction
 from decimal import Decimal
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator
@@ -175,6 +175,59 @@ class Stock(models.Model):
     def __str__(self):
         chassis = self.chassis_number or 'Unassigned'
         return f"{self.model.model_name} - Chassis: {chassis} ({self.get_stock_status_display()})"
+
+
+class InvoiceSequence(models.Model):
+    """
+    Global, monotonically increasing invoice-number counter.
+
+    This is the single source of truth for the numeric part of
+    Sales.invoice_no. The counter is ONLY ever incremented -- it is
+    never decremented, reset, or derived from existing Sales rows --
+    which guarantees:
+
+      1. Invoice numbers are always unique (no two bills can ever be
+         assigned the same number, even under concurrent requests --
+         next_number() takes a row lock via select_for_update()).
+      2. A deleted invoice number is NEVER reused, even if the bill
+         with the highest number is the one that gets deleted.
+
+    Previously, invoice numbers were derived from `Sales.objects.count()`
+    (and, for the Customer master table, from the most recently created
+    row's number). Both approaches reissue a previously-used number as
+    soon as any bill is deleted, because they look at the CURRENT set of
+    rows rather than remembering the highest number ever issued. This
+    model replaces that unsafe approach for Sales/bill invoice numbers.
+    """
+    id = models.PositiveIntegerField(primary_key=True, default=1, editable=False)
+    last_number = models.PositiveIntegerField(default=0)
+
+    def __str__(self):
+        return f"Invoice sequence (last issued: {self.last_number})"
+
+    @classmethod
+    def next_number(cls):
+        """
+        Atomically reserves and returns the next invoice number.
+        Call this ONLY when a bill is actually being created/saved.
+        """
+        with transaction.atomic():
+            seq, _ = cls.objects.select_for_update().get_or_create(pk=1)
+            seq.last_number += 1
+            seq.save(update_fields=['last_number'])
+            return seq.last_number
+
+    @classmethod
+    def peek_next(cls):
+        """
+        Read-only preview of what the next invoice number WOULD be,
+        without reserving/consuming it. Safe to call as many times as
+        needed (e.g. to display a preview on an empty Sales form) since
+        it never advances the counter.
+        """
+        seq = cls.objects.filter(pk=1).first()
+        last = seq.last_number if seq else 0
+        return last + 1
 
 
 class Sales(models.Model):

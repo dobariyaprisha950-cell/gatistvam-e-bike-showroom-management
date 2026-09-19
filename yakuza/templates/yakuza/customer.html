@@ -101,6 +101,7 @@
                         <td>
                             <div style="display: flex; gap: 5px; align-items: center;">
                                 <button type="button" class="btn btn-primary btn-sm view-invoice-btn" data-id="{{ customer.id }}">View</button>
+                                <button type="button" class="btn btn-danger btn-sm delete-bill-btn" data-id="{{ customer.id }}">Delete</button>
                             </div>
                         </td>
                     </tr>
@@ -286,10 +287,28 @@
             <button type="button" class="sales-btn" id="editInvoiceBtn" style="background: #f59e0b; color: white; border: none; padding: 8px 14px; border-radius: 4px; font-weight: bold; cursor: pointer;"><i class="fas fa-edit"></i> Edit</button>
             <button type="button" class="sales-btn sales-btn-print" id="printInvoiceBtn" style="background: #0284c7; color: white; border: none; padding: 8px 14px; border-radius: 4px; font-weight: bold; cursor: pointer;"><i class="fas fa-print"></i> Print Invoice</button>
             <button type="button" class="sales-btn" id="whatsappModalBtn" style="background: #25d366; color: white; border: none; padding: 8px 14px; border-radius: 4px; font-weight: bold; cursor: pointer;"><i class="fab fa-whatsapp"></i> Share on WhatsApp</button>
+            <button type="button" class="sales-btn" id="deleteInvoiceBtn" style="background: #dc2626; color: white; border: none; padding: 8px 14px; border-radius: 4px; font-weight: bold; cursor: pointer;"><i class="fas fa-trash"></i> Delete</button>
             <button type="button" class="sales-btn sales-btn-close" id="closeInvoiceFooterBtn" style="background: #64748b; color: white; border: none; padding: 8px 14px; border-radius: 4px; font-weight: bold; cursor: pointer;">Close</button>
         </div>
     </div>
 </div>
+
+<!-- Delete Bill Confirmation Modal -->
+<div id="deleteBillModal" class="invoice-message-backdrop" style="display: none;">
+    <div class="invoice-message-box">
+        <div class="invoice-message-icon" style="background: #fee2e2; color: #b91c1c;">!</div>
+        <div class="invoice-message-title">Delete Bill?</div>
+        <p class="invoice-message-text">
+            Are you sure you want to permanently delete this bill?<br>
+            This action cannot be undone.
+        </p>
+        <div class="invoice-message-actions">
+            <button type="button" id="cancelDeleteBillBtn" class="btn-modal-secondary">Cancel</button>
+            <button type="button" id="confirmDeleteBillBtn" class="btn-modal-danger">Delete</button>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="{% static 'js/customer.js' %}"></script>
 {% endblock %}

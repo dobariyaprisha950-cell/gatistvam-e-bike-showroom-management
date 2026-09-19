@@ -58,6 +58,7 @@ urlpatterns = [
     path('invoice/pdf/<int:sale_id>/', views.generate_invoice_pdf, name='generate_invoice_pdf'),
     path('customer/', views.customer, name='customer'),
     path('customer/invoice-data/<int:sale_id>/', views.get_customer_invoice_ajax, name='get_customer_invoice_ajax'),
+    path('customer/delete-bill/<int:sale_id>/', views.delete_bill, name='delete_bill'),
 
     # Expense Module Endpoints
     path('expenses/', views.expenses, name='expenses'),

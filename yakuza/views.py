@@ -51,7 +51,7 @@ from yakuza.models import (
     Branch, UserProfile, Supplier, VehicleCompany,
     VehicleColor, VehicleModel, Purchase, PurchaseItem, Stock,
     Sales, Customer, ExpenseMaster, Expense, Notification, Settings, AuditLog,
-    InvoiceSetting, BackupHistory
+    InvoiceSetting, BackupHistory, InvoiceSequence
 )
 
 from yakuza.permissions import IsSuperAdmin, IsBranchAdmin, IsBranchScoped
@@ -1953,16 +1953,24 @@ def sales(request):
 
                 year = timezone.now().year
 
+                # Invoice numbers must never repeat, including after a
+                # bill is deleted. InvoiceSequence.next_number() is an
+                # atomically-incremented counter that is never rolled
+                # back, unlike Sales.objects.count() which drops (and
+                # therefore reissues old numbers) whenever any bill is
+                # deleted. See yakuza.models.InvoiceSequence.
+                next_seq = InvoiceSequence.next_number()
+
                 if prefix.endswith(f"{year}-"):
                     auto_inv = (
                         f"{prefix}"
-                        f"{(Sales.objects.count() + 1):04d}"
+                        f"{next_seq:04d}"
                     )
                 else:
                     auto_inv = (
                         f"{prefix}"
                         f"{year}-"
-                        f"{(Sales.objects.count() + 1):04d}"
+                        f"{next_seq:04d}"
                     )
 
                 sale = Sales.objects.create(
@@ -2127,18 +2135,24 @@ def sales(request):
         # Existing invoice number must remain unchanged
         auto_invoice_no = edit_sale.invoice_no
 
-    elif prefix.endswith(f"{year}-"):
-        auto_invoice_no = (
-            f"{prefix}"
-            f"{(Sales.objects.count() + 1):04d}"
-        )
-
     else:
-        auto_invoice_no = (
-            f"{prefix}"
-            f"{year}-"
-            f"{(Sales.objects.count() + 1):04d}"
-        )
+        # Preview only -- does NOT reserve/consume a number. The real
+        # number is assigned atomically by InvoiceSequence.next_number()
+        # at the moment the bill is actually saved (see the POST branch
+        # above), so this preview can never cause a gap or a collision.
+        next_seq = InvoiceSequence.peek_next()
+
+        if prefix.endswith(f"{year}-"):
+            auto_invoice_no = (
+                f"{prefix}"
+                f"{next_seq:04d}"
+            )
+        else:
+            auto_invoice_no = (
+                f"{prefix}"
+                f"{year}-"
+                f"{next_seq:04d}"
+            )
 
     branch_name = (
         branch.branch_name
@@ -2457,7 +2471,105 @@ def get_customer_invoice_ajax(request, sale_id):
         return JsonResponse({'status': 'error', 'message': 'Unable to identify sale.'}, status=404)
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
-    
+
+
+@login_required
+@require_POST
+def delete_bill(request, sale_id):
+    """
+    Permanently deletes a bill (a Sales record) from the Customer &
+    Sales History page.
+
+    Related-record handling (see Part 4/5 of the implementation spec):
+
+      - Stock.sale is a ForeignKey to Sales with on_delete=SET_NULL, so
+        Django automatically clears it when the Sales row is deleted --
+        no broken foreign key is left behind.
+      - The linked Stock row is additionally reverted to its pre-sale
+        AVAILABLE state (status + the chassis/battery/motor/controller
+        numbers that were only ever assigned at sale time are cleared).
+        Without this the vehicle would be stuck as an orphaned "SOLD"
+        row with no sale attached to it -- neither sold nor purchasable
+        again. This mirrors exactly how a freshly purchased, not-yet-sold
+        Stock row already looks elsewhere in the codebase (see the
+        AVAILABLE/chassis_number__isnull=True lookup in the sales() view).
+      - The Customer "master" table (yakuza.models.Customer) is a
+        separate table keyed by mobile number with NO foreign key to
+        Sales, so it is left completely untouched -- customer history is
+        preserved exactly as the spec requires.
+      - Any uploaded invoice PDF/photo for this bill is removed from
+        storage along with the row.
+      - Sales.invoice_no is never reused: numbers are issued by
+        InvoiceSequence, a counter that is only ever incremented and is
+        NOT touched by this delete.
+    """
+    sale = get_object_or_404(
+        Sales.objects.select_related('stock', 'stock__branch'),
+        id=sale_id
+    )
+
+    branch = get_user_branch_context(request)
+    if branch is not None and sale.stock and sale.stock.branch != branch:
+        return JsonResponse(
+            {'status': 'error', 'message': 'Permission denied.'},
+            status=403
+        )
+
+    invoice_no = sale.invoice_no
+    customer_name = sale.customer_name
+
+    try:
+        with transaction.atomic():
+            stock = None
+            if sale.stock_id:
+                stock = (
+                    Stock.objects
+                    .select_for_update()
+                    .filter(id=sale.stock_id)
+                    .first()
+                )
+
+            # Best-effort removal of uploaded invoice files from storage.
+            if sale.invoice_pdf:
+                sale.invoice_pdf.delete(save=False)
+            if sale.invoice_photo:
+                sale.invoice_photo.delete(save=False)
+
+            sale.delete()
+
+            if stock:
+                stock.stock_status = Stock.StockStatus.AVAILABLE
+                stock.sale = None
+                stock.chassis_number = None
+                stock.battery_number = None
+                stock.motor_number = None
+                stock.controller_number = None
+                stock.save(update_fields=[
+                    'stock_status', 'sale', 'chassis_number',
+                    'battery_number', 'motor_number', 'controller_number'
+                ])
+
+            log_audit(
+                request.user,
+                module="Sales",
+                action="BILL_DELETED",
+                details=f"Permanently deleted bill {invoice_no} ({customer_name})",
+                old_val={'invoice_no': invoice_no, 'customer_name': customer_name},
+                request=request
+            )
+
+    except Exception as e:
+        return JsonResponse(
+            {'status': 'error', 'message': str(e)},
+            status=400
+        )
+
+    return JsonResponse({
+        'status': 'success',
+        'message': f'Bill {invoice_no} deleted successfully.',
+        'sale_id': sale_id
+    })
+
 
 @login_required
 def expenses(request):
