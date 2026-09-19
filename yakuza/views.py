@@ -1,6 +1,7 @@
 import json
 import uuid
 import csv
+import logging
 import re
 import os
 import ast
@@ -65,6 +66,9 @@ from yakuza.serializers import (
     AuditLogSerializer, ProfitReportSerializer
 )
 
+
+
+logger = logging.getLogger(__name__)
 
 
 def format_indian_currency(amount):
@@ -979,13 +983,13 @@ def live_stock(request):
             continue
 
         available_color_ids.add(color_obj.id)
-        key = (model_obj.id, color_obj.id)
+        # Live Stock is a batch summary. Purchase price must be part of its
+        # identity so differently priced purchases of the same model/colour
+        # remain visible as separate historical-cost batches.
+        purchase_price = item.purchase_price or model_obj.base_purchase_price or Decimal('0.00')
+        key = (model_obj.id, color_obj.id, purchase_price)
 
         if key not in grouped_dict:
-            price = item.selling_price if (item.selling_price and item.selling_price > Decimal('0.00')) else item.purchase_price
-            if not price or price == Decimal('0.00'):
-                price = model_obj.base_purchase_price or Decimal('0.00')
-
             comp_name = item.company.company_name if item.company else (model_obj.company.company_name if model_obj.company else '')
 
             grouped_dict[key] = {
@@ -995,7 +999,7 @@ def live_stock(request):
                 'color_id': color_obj.id,
                 'color_name': color_obj.color_name,
                 'quantity': 0,
-                'price': price,
+                'price': purchase_price,
             }
         grouped_dict[key]['quantity'] += 1
 
@@ -1076,7 +1080,43 @@ def _parse_vehicle_line_items(vehicle_items, branch):
     if not flattened:
         raise ValueError("At least one valid vehicle color allocation is required.")
 
-    return flattened
+    # Group lines that are identical in model + colour + PRICE into a single
+    # batch, so entering "Duster @50,000 x1" twice becomes one batch of 2
+    # rather than two duplicate rows.
+    #
+    # Lines that differ in price are deliberately NOT merged: they are
+    # genuinely separate purchase batches and each must keep its own cost.
+    # Order of first appearance is preserved.
+    grouped_lines = {}
+    grouped_order = []
+    for li in flattened:
+        key = (li['model'].id, li['color'].id, _purchase_price_key(li['unit_price']))
+        if key not in grouped_lines:
+            grouped_lines[key] = {
+                'model': li['model'],
+                'color': li['color'],
+                'quantity': 0,
+                'unit_price': _purchase_price_key(li['unit_price']),
+            }
+            grouped_order.append(key)
+        grouped_lines[key]['quantity'] += li['quantity']
+
+    return [grouped_lines[key] for key in grouped_order]
+
+
+def _purchase_price_key(value):
+    """
+    Normalises a purchase price for use in a grouping/matching key.
+
+    Prices arrive as str/float/Decimal from JSON and come back from the
+    database as Decimal with 2 decimal places. Quantising both sides to
+    2dp means Decimal('47000'), 47000.0 and Decimal('47000.00') all
+    compare equal, so an unchanged price is never mistaken for a new one.
+    """
+    try:
+        return Decimal(str(value)).quantize(Decimal('0.01'))
+    except (InvalidOperation, TypeError, ValueError):
+        return Decimal('0.00')
 
 
 def _reconcile_purchase_items_and_stock(purchase, branch, line_items):
@@ -1088,134 +1128,217 @@ def _reconcile_purchase_items_and_stock(purchase, branch, line_items):
     `_parse_vehicle_line_items`), reversing whatever the OLD allocation was
     and applying the NEW allocation -- without ever double-counting stock.
 
-    Matching key: (model_id, color_id). For each key:
-      - If a PurchaseItem already exists for that (model, color) on this
-        purchase, it is UPDATED IN PLACE (never deleted+recreated), and its
-        AVAILABLE Stock rows are grown/shrunk to match the new quantity
-        (net change only -- e.g. 5 -> 8 adds exactly 3, 8 -> 5 removes
-        exactly 3). SOLD stock rows are never touched or deleted.
-      - If no PurchaseItem exists yet for that key (e.g. model/color was
-        changed to something new), a new PurchaseItem + AVAILABLE Stock rows
-        are created for it -- this is the "apply new allocation" half of a
-        model/color change.
-      - Any PurchaseItem that existed before but is no longer present in the
-        desired state (e.g. the old model/color of a changed entry) is
-        removed along with its AVAILABLE Stock rows -- this is the "reverse
-        old allocation" half of a model/color change.
+    MATCHING KEY: (model_id, color_id, purchase_price)
+    -------------------------------------------------
+    The price is PART OF THE KEY. This is what makes the business rule work:
 
-    A quantity reduction (or removal) that would require deleting more units
-    than are currently AVAILABLE (i.e. some units of that exact
-    model+color+purchase-item are already SOLD) is rejected with a
-    ValueError, which the caller turns into a 400 + full transaction
-    rollback -- sold stock is never silently deleted or reassigned.
+      - Same model + same colour + SAME price  -> one batch, quantities
+        grouped together.
+      - Same model + same colour + DIFFERENT price -> SEPARATE batches,
+        each keeping its own purchase price.
+
+    This previously keyed on (model_id, color_id) alone, which merged two
+    different-price batches of the same model into one row, summed their
+    quantities and let the LAST price win -- turning
+    "Duster @47,000 x2 + Duster @50,000 x3" into "Duster @50,000 x5" and
+    permanently destroying the 47,000 historical cost. It also left the
+    second PurchaseItem behind unreconciled, inflating stock.
+
+    Reconciliation runs in three passes:
+
+      1. EXACT match on (model, colour, price) -- update quantity in place,
+         growing/shrinking only the AVAILABLE stock rows by the net change.
+      2. PRICE CORRECTION -- if a desired entry has no exact match but there
+         is exactly ONE leftover PurchaseItem for that (model, colour) and
+         exactly ONE unmatched desired entry for it, treat it as the user
+         correcting a typo'd price and update in place. Anything more
+         ambiguous than that is treated as add + remove instead of guessing
+         which batch the user meant.
+      3. LEFTOVERS -- any PurchaseItem not consumed by pass 1 or 2 is
+         removed along with its AVAILABLE Stock rows.
+
+    SOLD STOCK IS NEVER REPRICED. Stock price updates are filtered to
+    stock_status=AVAILABLE, so a vehicle already sold keeps the cost basis
+    it was bought at and existing profit figures never move retroactively.
+    A quantity reduction that would require deleting already-SOLD units is
+    rejected with a ValueError, which the caller turns into a 400 + full
+    transaction rollback.
     """
     desired = {}
+    desired_order = []
     for li in line_items:
-        key = (li['model'].id, li['color'].id)
-        entry = desired.setdefault(key, {'model': li['model'], 'color': li['color'], 'quantity': 0, 'unit_price': li['unit_price']})
-        entry['quantity'] += li['quantity']
-        entry['unit_price'] = li['unit_price']
+        key = (li['model'].id, li['color'].id, _purchase_price_key(li['unit_price']))
+        if key not in desired:
+            desired[key] = {
+                'model': li['model'],
+                'color': li['color'],
+                'quantity': 0,
+                'unit_price': _purchase_price_key(li['unit_price']),
+            }
+            desired_order.append(key)
+        desired[key]['quantity'] += li['quantity']
 
     existing_items = list(
-        purchase.items.select_related('model', 'color', 'company').all()
+        purchase.items.select_related('model', 'color', 'company').order_by('id')
     )
+
     existing_by_key = {}
     for it in existing_items:
-        existing_by_key.setdefault((it.model_id, it.color_id), []).append(it)
+        k = (it.model_id, it.color_id, _purchase_price_key(it.purchase_price))
+        existing_by_key.setdefault(k, []).append(it)
 
-    handled_keys = set()
+    # PurchaseItem ids already consumed by a desired entry. Tracking items
+    # (not keys) means duplicate rows for the same key can no longer be
+    # silently left behind unreconciled.
+    handled_item_ids = set()
 
-    for key, data in desired.items():
+    def _sold_count(item):
+        return Stock.objects.filter(
+            purchase_item=item, stock_status=Stock.StockStatus.SOLD
+        ).count()
+
+    def _apply_to_item(item, data, new_price):
+        """Update an existing PurchaseItem in place and sync its stock."""
         vehicle_model = data['model']
         color_obj = data['color']
         new_qty = data['quantity']
-        new_price = data['unit_price']
+        old_qty = item.quantity
 
-        items_for_key = existing_by_key.get(key, [])
-
-        if items_for_key:
-            # UPDATE existing PurchaseItem in place -- never create a duplicate.
-            item = items_for_key[0]
-            handled_keys.add(key)
-            old_qty = item.quantity
-
-            sold_count = Stock.objects.filter(purchase_item=item, stock_status=Stock.StockStatus.SOLD).count()
-            if new_qty < sold_count:
-                raise ValueError(
-                    f"Cannot reduce quantity for '{vehicle_model.model_name} ({color_obj.color_name})' below "
-                    f"{sold_count} unit(s) that are already sold."
-                )
-
-            item.company = vehicle_model.company
-            item.model = vehicle_model
-            item.color = color_obj
-            item.purchase_price = new_price
-            item.quantity = new_qty
-            item.save()  # recalculates subtotal/total_amount via PurchaseItem.save()
-
-            # Keep AVAILABLE stock in sync with the (possibly changed) model/color/price.
-            Stock.objects.filter(purchase_item=item, stock_status=Stock.StockStatus.AVAILABLE).update(
-                branch=branch, company=vehicle_model.company, model=vehicle_model,
-                color=color_obj, purchase_price=new_price,
+        sold = _sold_count(item)
+        if new_qty < sold:
+            raise ValueError(
+                f"Cannot reduce quantity for '{vehicle_model.model_name} "
+                f"({color_obj.color_name})' below {sold} unit(s) that are already sold."
             )
 
-            if new_qty > old_qty:
-                # Reverse nothing -- simply APPLY the extra new units.
-                diff = new_qty - old_qty
-                Stock.objects.bulk_create([
-                    Stock(
-                        purchase_item=item, branch=branch, company=vehicle_model.company,
-                        model=vehicle_model, color=color_obj, purchase_price=new_price,
-                        stock_status=Stock.StockStatus.AVAILABLE,
-                        chassis_number=None, battery_number=None, motor_number=None, controller_number=None,
-                    )
-                    for _ in range(diff)
-                ])
-            elif new_qty < old_qty:
-                # REVERSE exactly the removed units (only ever AVAILABLE, never SOLD).
-                diff = old_qty - new_qty
-                removable_ids = list(
-                    Stock.objects.filter(purchase_item=item, stock_status=Stock.StockStatus.AVAILABLE)
-                    .order_by('-id').values_list('id', flat=True)[:diff]
-                )
-                if len(removable_ids) < diff:
-                    raise ValueError(
-                        f"Cannot reduce quantity for '{vehicle_model.model_name} ({color_obj.color_name})' -- "
-                        f"not enough available (unsold) stock to remove."
-                    )
-                Stock.objects.filter(id__in=removable_ids).delete()
-            # new_qty == old_qty: quantity unchanged, only price/model/color (if any) applied above.
+        item.company = vehicle_model.company
+        item.model = vehicle_model
+        item.color = color_obj
+        item.purchase_price = new_price
+        item.quantity = new_qty
+        item.save()  # recalculates subtotal/total_amount via PurchaseItem.save()
 
-        else:
-            # New (model, color) combination for this purchase -- APPLY new allocation from scratch.
-            item = PurchaseItem.objects.create(
-                purchase=purchase, company=vehicle_model.company, model=vehicle_model,
-                color=color_obj, quantity=new_qty, purchase_price=new_price,
-            )
+        # Only AVAILABLE stock is repriced -- SOLD units keep the cost they
+        # were actually bought at, so historical profit never changes.
+        Stock.objects.filter(
+            purchase_item=item, stock_status=Stock.StockStatus.AVAILABLE
+        ).update(
+            branch=branch, company=vehicle_model.company, model=vehicle_model,
+            color=color_obj, purchase_price=new_price,
+        )
+
+        if new_qty > old_qty:
+            diff = new_qty - old_qty
             Stock.objects.bulk_create([
                 Stock(
                     purchase_item=item, branch=branch, company=vehicle_model.company,
                     model=vehicle_model, color=color_obj, purchase_price=new_price,
                     stock_status=Stock.StockStatus.AVAILABLE,
-                    chassis_number=None, battery_number=None, motor_number=None, controller_number=None,
+                    chassis_number=None, battery_number=None,
+                    motor_number=None, controller_number=None,
                 )
-                for _ in range(new_qty)
+                for _ in range(diff)
             ])
-
-    # Anything that existed before but is no longer in the desired state
-    # (e.g. the OLD model/color of an entry that was changed) -- REVERSE it fully.
-    for key, items_for_key in existing_by_key.items():
-        if key in handled_keys:
-            continue
-        for item in items_for_key:
-            sold_count = Stock.objects.filter(purchase_item=item, stock_status=Stock.StockStatus.SOLD).count()
-            if sold_count > 0:
+        elif new_qty < old_qty:
+            diff = old_qty - new_qty
+            removable_ids = list(
+                Stock.objects.filter(
+                    purchase_item=item, stock_status=Stock.StockStatus.AVAILABLE
+                ).order_by('-id').values_list('id', flat=True)[:diff]
+            )
+            if len(removable_ids) < diff:
                 raise ValueError(
-                    f"Cannot remove '{item.model.model_name} ({item.color.color_name})' from this purchase -- "
-                    f"{sold_count} unit(s) already sold."
+                    f"Cannot reduce quantity for '{vehicle_model.model_name} "
+                    f"({color_obj.color_name})' -- not enough available (unsold) stock to remove."
                 )
-            Stock.objects.filter(purchase_item=item, stock_status=Stock.StockStatus.AVAILABLE).delete()
-            item.delete()
+            Stock.objects.filter(id__in=removable_ids).delete()
+
+    def _create_item(data, new_price):
+        """Create a brand new batch (PurchaseItem + its AVAILABLE stock)."""
+        vehicle_model = data['model']
+        color_obj = data['color']
+        new_qty = data['quantity']
+
+        item = PurchaseItem.objects.create(
+            purchase=purchase, company=vehicle_model.company, model=vehicle_model,
+            color=color_obj, quantity=new_qty, purchase_price=new_price,
+        )
+        Stock.objects.bulk_create([
+            Stock(
+                purchase_item=item, branch=branch, company=vehicle_model.company,
+                model=vehicle_model, color=color_obj, purchase_price=new_price,
+                stock_status=Stock.StockStatus.AVAILABLE,
+                chassis_number=None, battery_number=None,
+                motor_number=None, controller_number=None,
+            )
+            for _ in range(new_qty)
+        ])
+        return item
+
+    # ------------------------------------------------------------------
+    # PASS 1 -- exact (model, colour, price) match: quantity change only.
+    # ------------------------------------------------------------------
+    unmatched_desired = []
+
+    for key in desired_order:
+        data = desired[key]
+        candidates = [
+            it for it in existing_by_key.get(key, [])
+            if it.id not in handled_item_ids
+        ]
+        if candidates:
+            item = candidates[0]
+            handled_item_ids.add(item.id)
+            _apply_to_item(item, data, data['unit_price'])
+        else:
+            unmatched_desired.append(key)
+
+    # ------------------------------------------------------------------
+    # PASS 2 -- price correction, but only when it is UNAMBIGUOUS.
+    # ------------------------------------------------------------------
+    for key in unmatched_desired:
+        data = desired[key]
+        model_id, color_id, new_price = key
+
+        leftover_items = [
+            it for it in existing_items
+            if it.model_id == model_id
+            and it.color_id == color_id
+            and it.id not in handled_item_ids
+        ]
+        sibling_desired = [
+            k for k in unmatched_desired
+            if k[0] == model_id and k[1] == color_id
+        ]
+
+        if len(leftover_items) == 1 and len(sibling_desired) == 1:
+            # Exactly one old batch and exactly one new batch for this
+            # model+colour: the user edited the price of that batch.
+            item = leftover_items[0]
+            handled_item_ids.add(item.id)
+            _apply_to_item(item, data, new_price)
+        else:
+            # Ambiguous (or genuinely a new batch): add it as its own batch
+            # and let pass 3 remove anything truly no longer wanted. This is
+            # what keeps "Duster @47,000" and "Duster @50,000" as two rows.
+            _create_item(data, new_price)
+
+    # ------------------------------------------------------------------
+    # PASS 3 -- reverse anything that is no longer part of the purchase.
+    # ------------------------------------------------------------------
+    for item in existing_items:
+        if item.id in handled_item_ids:
+            continue
+        sold = _sold_count(item)
+        if sold > 0:
+            raise ValueError(
+                f"Cannot remove '{item.model.model_name} ({item.color.color_name}) "
+                f"@ {item.purchase_price}' from this purchase -- {sold} unit(s) already sold."
+            )
+        Stock.objects.filter(
+            purchase_item=item, stock_status=Stock.StockStatus.AVAILABLE
+        ).delete()
+        item.delete()
 
 
 @login_required
@@ -1350,34 +1473,43 @@ def purchase_page_view(request, purchase_id=None):
 
     if purchase is not None:
         # Build the pre-fill payload for the Vehicle Entries table: one row
-        # per model (matching how the page groups entries), each carrying
-        # its existing color allocations -- exactly what the JS needs to
-        # reconstruct `vehicleEntries` on load.
+        # per (model, purchase price), each carrying its own color
+        # allocations -- exactly what the JS needs to reconstruct
+        # `vehicleEntries` on load.
+        #
+        # The price is part of the grouping key. Grouping by model alone
+        # collapsed every price batch of a model into a single row that
+        # showed the FIRST batch's price against the TOTAL quantity, so
+        # simply opening and saving a purchase that held
+        # "Duster @47,000 x2 + Duster @50,000 x3" rewrote all 5 units to
+        # one price and destroyed the other batch's historical cost.
         existing_items_qs = purchase.items.select_related('model', 'color', 'company').order_by('id')
         grouped = {}
         order = []
         for it in existing_items_qs:
-            if it.model_id not in grouped:
-                grouped[it.model_id] = {
-                    'id': f've_existing_{it.model_id}',
+            unit_price = float(it.purchase_price)
+            group_key = (it.model_id, _purchase_price_key(it.purchase_price))
+            if group_key not in grouped:
+                grouped[group_key] = {
+                    'id': f've_existing_{it.model_id}_{str(unit_price).replace(".", "_")}',
                     'modelId': str(it.model_id),
                     'modelName': it.model.model_name,
                     'quantity': 0,
-                    'unitPrice': float(it.purchase_price),
+                    'unitPrice': unit_price,
                     'totalAmount': 0,
                     'colorAllocations': [],
                 }
-                order.append(it.model_id)
-            grouped[it.model_id]['quantity'] += it.quantity
-            grouped[it.model_id]['colorAllocations'].append({
+                order.append(group_key)
+            grouped[group_key]['quantity'] += it.quantity
+            grouped[group_key]['colorAllocations'].append({
                 'colorId': str(it.color_id),
                 'colorName': it.color.color_name,
                 'quantity': it.quantity,
             })
 
         existing_items_list = []
-        for model_id in order:
-            g = grouped[model_id]
+        for group_key in order:
+            g = grouped[group_key]
             g['totalAmount'] = round(g['quantity'] * g['unitPrice'], 2)
             existing_items_list.append(g)
 
@@ -1677,7 +1809,12 @@ def edit_color_ajax(request, color_id):
 @login_required
 def purchase_history(request):
     branch_context = get_user_branch_context(request)
-    purchases = Purchase.objects.all().select_related('supplier', 'branch').prefetch_related('items').order_by('-id')
+    purchases = (
+        Purchase.objects.all()
+        .select_related('supplier', 'branch')
+        .prefetch_related('items__model', 'items__color')
+        .order_by('-id')
+    )
     
     if branch_context is not None:
         purchases = purchases.filter(branch=branch_context)
@@ -1696,6 +1833,25 @@ def purchase_history(request):
         except (InvalidOperation, TypeError, ValueError):
             insurance_amount = Decimal('0.00')
         purchase.computed_total = purchase_amount + insurance_amount
+
+        # Per-batch breakdown for the details modal.
+        #
+        # A purchase can legitimately hold the SAME model at DIFFERENT prices
+        # (e.g. Duster @47,000 x2 and Duster @50,000 x3). The list header only
+        # has room for the totals, so without this the two batches were
+        # indistinguishable in the UI and the historical 47,000 cost was
+        # invisible. One row per PurchaseItem = one row per batch, each with
+        # its own price.
+        purchase.items_json = json.dumps([
+            {
+                'model': item.model.model_name if item.model else '-',
+                'color': item.color.color_name if item.color else '-',
+                'price': f"{item.purchase_price:.2f}",
+                'quantity': item.quantity,
+                'subtotal': f"{item.subtotal:.2f}",
+            }
+            for item in purchase.items.all()
+        ])
 
     return render(request, 'yakuza/purchase_history.html', {'purchases': purchases})
 
@@ -1814,6 +1970,17 @@ def sales(request):
                     )
 
             else:
+                # AVAILABLE + no active sale is the authoritative test for
+                # "can be sold".
+                #
+                # This used to also require chassis_number__isnull=True.
+                # That was equivalent for freshly purchased stock (which
+                # is created with a NULL chassis number), but it strands a
+                # vehicle that was returned to stock by deleting its bill:
+                # such a vehicle keeps its permanent chassis number (see
+                # delete_bill) and so could never be found or sold again.
+                # Dropping the condition changes nothing for existing
+                # data and makes returned vehicles sellable again.
                 stock_qs = (
                     Stock.objects
                     .select_for_update()
@@ -1821,7 +1988,7 @@ def sales(request):
                         model__model_name=model_name,
                         color__color_name=vehicle_color,
                         stock_status=Stock.StockStatus.AVAILABLE,
-                        chassis_number__isnull=True,
+                        sale__isnull=True,
                     )
                     .select_related(
                         "model",
@@ -1951,27 +2118,17 @@ def sales(request):
                 if not prefix:
                     prefix = "INV-"
 
-                year = timezone.now().year
-
                 # Invoice numbers must never repeat, including after a
-                # bill is deleted. InvoiceSequence.next_number() is an
-                # atomically-incremented counter that is never rolled
-                # back, unlike Sales.objects.count() which drops (and
-                # therefore reissues old numbers) whenever any bill is
-                # deleted. See yakuza.models.InvoiceSequence.
-                next_seq = InvoiceSequence.next_number()
-
-                if prefix.endswith(f"{year}-"):
-                    auto_inv = (
-                        f"{prefix}"
-                        f"{next_seq:04d}"
-                    )
-                else:
-                    auto_inv = (
-                        f"{prefix}"
-                        f"{year}-"
-                        f"{next_seq:04d}"
-                    )
+                # bill is deleted. InvoiceSequence is an atomically
+                # incremented counter, unlike the original
+                # Sales.objects.count() which drops (and therefore
+                # reissues old numbers) whenever any bill is deleted.
+                #
+                # This reserves a number and is reached ONLY on the
+                # create branch -- edits keep their existing number and
+                # the form preview uses peek_invoice_no(), so no number
+                # is ever consumed without a bill being issued for it.
+                auto_inv = InvoiceSequence.next_invoice_no(prefix)
 
                 sale = Sales.objects.create(
                     stock=stock_obj,
@@ -2137,22 +2294,10 @@ def sales(request):
 
     else:
         # Preview only -- does NOT reserve/consume a number. The real
-        # number is assigned atomically by InvoiceSequence.next_number()
-        # at the moment the bill is actually saved (see the POST branch
-        # above), so this preview can never cause a gap or a collision.
-        next_seq = InvoiceSequence.peek_next()
-
-        if prefix.endswith(f"{year}-"):
-            auto_invoice_no = (
-                f"{prefix}"
-                f"{next_seq:04d}"
-            )
-        else:
-            auto_invoice_no = (
-                f"{prefix}"
-                f"{year}-"
-                f"{next_seq:04d}"
-            )
+        # number is assigned by InvoiceSequence.next_invoice_no() at the
+        # moment the bill is actually saved (see the POST branch above),
+        # so opening/abandoning the form never burns an invoice number.
+        auto_invoice_no = InvoiceSequence.peek_invoice_no(prefix, year)
 
     branch_name = (
         branch.branch_name
@@ -2480,28 +2625,32 @@ def delete_bill(request, sale_id):
     Permanently deletes a bill (a Sales record) from the Customer &
     Sales History page.
 
-    Related-record handling (see Part 4/5 of the implementation spec):
+    SECURITY
+    --------
+    - @require_POST: a GET can never delete (a crawler, a prefetch or a
+      pasted URL is harmless).
+    - @login_required: anonymous users cannot reach it.
+    - Django's CSRF middleware protects the POST; the frontend sends the
+      X-CSRFToken header.
+    - Branch scoping: a Branch Admin can only delete a bill belonging to
+      their own branch, matching how every other view in this project
+      uses get_user_branch_context().
+    - Only the single Sales row identified by sale_id is touched.
 
-      - Stock.sale is a ForeignKey to Sales with on_delete=SET_NULL, so
-        Django automatically clears it when the Sales row is deleted --
-        no broken foreign key is left behind.
-      - The linked Stock row is additionally reverted to its pre-sale
-        AVAILABLE state (status + the chassis/battery/motor/controller
-        numbers that were only ever assigned at sale time are cleared).
-        Without this the vehicle would be stuck as an orphaned "SOLD"
-        row with no sale attached to it -- neither sold nor purchasable
-        again. This mirrors exactly how a freshly purchased, not-yet-sold
-        Stock row already looks elsewhere in the codebase (see the
-        AVAILABLE/chassis_number__isnull=True lookup in the sales() view).
-      - The Customer "master" table (yakuza.models.Customer) is a
-        separate table keyed by mobile number with NO foreign key to
-        Sales, so it is left completely untouched -- customer history is
-        preserved exactly as the spec requires.
-      - Any uploaded invoice PDF/photo for this bill is removed from
-        storage along with the row.
-      - Sales.invoice_no is never reused: numbers are issued by
-        InvoiceSequence, a counter that is only ever incremented and is
-        NOT touched by this delete.
+    RELATED-RECORD HANDLING
+    -----------------------
+    - Stock.sale is a ForeignKey to Sales with on_delete=SET_NULL, so
+      Django clears the link automatically. No broken FK is left behind.
+    - The vehicle is returned to AVAILABLE so it can be sold again, but
+      its PERMANENT PHYSICAL IDENTIFIERS (chassis / battery / motor /
+      controller number) are DELIBERATELY PRESERVED. Those numbers are
+      stamped on the physical vehicle and are used for RTO registration,
+      warranty and insurance -- they describe the vehicle itself, not
+      the sale. Deleting a billing mistake must not erase them.
+    - The Customer master table has NO foreign key to Sales, so customer
+      history is left completely untouched.
+    - Purchase / PurchaseItem, notifications and other sales are not
+      touched in any way.
     """
     sale = get_object_or_404(
         Sales.objects.select_related('stock', 'stock__branch'),
@@ -2518,6 +2667,30 @@ def delete_bill(request, sale_id):
     invoice_no = sale.invoice_no
     customer_name = sale.customer_name
 
+    # Capture the storage files BEFORE the row goes away. They are
+    # deleted only after the database transaction has committed (see
+    # below) so that a storage error can never roll back or corrupt the
+    # database work, and so we never orphan a file for a bill that in
+    # the end was not deleted.
+    pending_files = []
+    if sale.invoice_pdf:
+        pending_files.append(sale.invoice_pdf)
+    if sale.invoice_photo:
+        pending_files.append(sale.invoice_photo)
+
+    def _remove_files():
+        for file_field in pending_files:
+            try:
+                file_field.delete(save=False)
+            except Exception:
+                # A missing or unreadable file must never surface as a
+                # failed delete: the bill itself is already gone.
+                logger.warning(
+                    "Invoice file for deleted bill %s could not be removed.",
+                    invoice_no,
+                    exc_info=True,
+                )
+
     try:
         with transaction.atomic():
             stock = None
@@ -2529,25 +2702,15 @@ def delete_bill(request, sale_id):
                     .first()
                 )
 
-            # Best-effort removal of uploaded invoice files from storage.
-            if sale.invoice_pdf:
-                sale.invoice_pdf.delete(save=False)
-            if sale.invoice_photo:
-                sale.invoice_photo.delete(save=False)
-
             sale.delete()
 
             if stock:
+                # Return the vehicle to sellable stock. NOTE: chassis,
+                # battery, motor and controller numbers are intentionally
+                # NOT cleared -- see the docstring above.
                 stock.stock_status = Stock.StockStatus.AVAILABLE
                 stock.sale = None
-                stock.chassis_number = None
-                stock.battery_number = None
-                stock.motor_number = None
-                stock.controller_number = None
-                stock.save(update_fields=[
-                    'stock_status', 'sale', 'chassis_number',
-                    'battery_number', 'motor_number', 'controller_number'
-                ])
+                stock.save(update_fields=['stock_status', 'sale'])
 
             log_audit(
                 request.user,
@@ -2557,6 +2720,9 @@ def delete_bill(request, sale_id):
                 old_val={'invoice_no': invoice_no, 'customer_name': customer_name},
                 request=request
             )
+
+        # Only runs if the transaction above committed successfully.
+        transaction.on_commit(_remove_files)
 
     except Exception as e:
         return JsonResponse(
@@ -4154,6 +4320,13 @@ def restore_backup(request):
                 new_sale = Sales.objects.create(**item)
                 new_stock.sale = new_sale
                 new_stock.save(update_fields=['sale'])
+
+            # A restore re-inserts bills carrying their ORIGINAL invoice
+            # numbers, which can leave the counter behind the data. Push
+            # it above the highest restored number so the next bill
+            # created after a restore cannot collide with a restored one.
+            # This only ever moves the counter forward.
+            InvoiceSequence.sync_to_existing_data()
 
             for item in backup_data.get('customers', []):
                 item.pop('id', None)

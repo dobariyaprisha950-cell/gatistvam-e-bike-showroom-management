@@ -3,7 +3,8 @@ from django.contrib.auth.models import User
 from yakuza.models import (
     Branch, UserProfile, Supplier, VehicleCompany,
     VehicleColor, VehicleModel, Purchase, PurchaseItem, Stock,
-    Sales, Customer, ExpenseMaster, Expense, Notification, Settings, AuditLog
+    Sales, Customer, ExpenseMaster, Expense, Notification, Settings, AuditLog,
+    InvoiceSetting, InvoiceSequence
 )
 
 
@@ -99,7 +100,7 @@ class SalesSerializer(serializers.ModelSerializer):
     class Meta:
         model = Sales
         fields = '__all__'
-        read_only_fields = ('invoice_number', 'subtotal', 'cgst', 'sgst', 'grand_total', 'created_by')
+        read_only_fields = ('invoice_no', 'subtotal', 'cgst', 'sgst', 'grand_total', 'created_by')
 
     def validate_stock(self, value):
         if value.stock_status != Stock.StockStatus.AVAILABLE:
@@ -114,6 +115,37 @@ class SalesSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("Selected stock is not available in the current branch.")
         return value
 
+    def _resolve_invoice_prefix(self):
+        """
+        Mirrors the prefix resolution used by the Sales page view:
+        the branch InvoiceSetting wins, then system Settings, then a
+        hardcoded default. Keeping this identical to the page view means
+        both bill-creation paths produce consistently formatted numbers
+        from the SAME InvoiceSequence counter.
+        """
+        branch = None
+        request = self.context.get('request')
+        if request:
+            from yakuza.views import get_user_branch_context
+            branch = get_user_branch_context(request)
+
+        invoice_setting = (
+            InvoiceSetting.objects.filter(branch=branch).first()
+            if branch
+            else InvoiceSetting.objects.first()
+        )
+
+        prefix = ""
+        if invoice_setting:
+            prefix = (invoice_setting.invoice_prefix or "").strip()
+
+        if not prefix:
+            sys_settings = Settings.load()
+            if sys_settings:
+                prefix = (sys_settings.invoice_prefix or "").strip()
+
+        return prefix or "INV-"
+
     def create(self, validated_data):
         chassis = validated_data.pop('chassis_number')
         battery = validated_data.pop('battery_number')
@@ -127,7 +159,27 @@ class SalesSerializer(serializers.ModelSerializer):
         stock.controller_number = controller
         stock.save(update_fields=['chassis_number', 'battery_number', 'motor_number', 'controller_number'])
 
+        # FIX: invoice_no is read-only, so it never arrives in
+        # validated_data, and Sales.save() does not generate one. Without
+        # this the API created bills with an EMPTY invoice number, and
+        # because Sales.invoice_no is unique=True the second API-created
+        # bill failed with an IntegrityError.
+        #
+        # The API now uses exactly the same InvoiceSequence counter as
+        # the Sales page, so numbers from either path share one gap-free,
+        # never-reused sequence.
+        if not validated_data.get('invoice_no'):
+            validated_data['invoice_no'] = InvoiceSequence.next_invoice_no(
+                self._resolve_invoice_prefix()
+            )
+
         sale = Sales.objects.create(**validated_data)
+
+        # Keep Stock in step with the sale, as the Sales page view does.
+        stock.stock_status = Stock.StockStatus.SOLD
+        stock.sale = sale
+        stock.save(update_fields=['stock_status', 'sale'])
+
         return sale
 
 

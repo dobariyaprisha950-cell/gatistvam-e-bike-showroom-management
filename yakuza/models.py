@@ -182,51 +182,206 @@ class InvoiceSequence(models.Model):
     Global, monotonically increasing invoice-number counter.
 
     This is the single source of truth for the numeric part of
-    Sales.invoice_no. The counter is ONLY ever incremented -- it is
-    never decremented, reset, or derived from existing Sales rows --
-    which guarantees:
+    Sales.invoice_no. Once the counter has been initialised it is ONLY
+    ever incremented -- never decremented and never recomputed from the
+    current set of Sales rows -- which guarantees:
 
-      1. Invoice numbers are always unique (no two bills can ever be
-         assigned the same number, even under concurrent requests --
-         next_number() takes a row lock via select_for_update()).
-      2. A deleted invoice number is NEVER reused, even if the bill
-         with the highest number is the one that gets deleted.
+      1. Invoice numbers are unique, even under concurrent requests
+         (next_number() takes a row lock via select_for_update()).
+      2. A deleted invoice number is NEVER reused, even when the bill
+         holding the highest number is the one that gets deleted.
 
-    Previously, invoice numbers were derived from `Sales.objects.count()`
-    (and, for the Customer master table, from the most recently created
-    row's number). Both approaches reissue a previously-used number as
-    soon as any bill is deleted, because they look at the CURRENT set of
-    rows rather than remembering the highest number ever issued. This
-    model replaces that unsafe approach for Sales/bill invoice numbers.
+    The original code derived invoice numbers from `Sales.objects.count()`.
+    That reissues a previously-used number as soon as ANY bill is deleted,
+    because it looks at the CURRENT row count rather than remembering the
+    highest number ever issued. This model replaces that.
+
+    INITIALISATION
+    --------------
+    The counter must start ABOVE any invoice number that already exists,
+    otherwise the first bill created on an existing database would be
+    handed a number that is already taken (and `Sales.invoice_no` is
+    unique=True, so that save would raise IntegrityError).
+
+    Initialisation happens in the migration that creates this table, and
+    `_initial_value()` below is used as a runtime fallback so the counter
+    is still correct if the table is created some other way (fresh
+    install, manual fixture load, restored dump, etc.).
     """
     id = models.PositiveIntegerField(primary_key=True, default=1, editable=False)
     last_number = models.PositiveIntegerField(default=0)
 
+    class Meta:
+        verbose_name = "Invoice Sequence"
+        verbose_name_plural = "Invoice Sequence"
+
     def __str__(self):
         return f"Invoice sequence (last issued: {self.last_number})"
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def extract_number(invoice_no):
+        """
+        Returns the trailing numeric part of an invoice number, or 0.
+
+        Invoice numbers in this project look like "<PREFIX>-<YEAR>-<NNNN>"
+        (e.g. "INV-2026-0004") or "<PREFIX>-<NNNN>". In both cases the
+        number we care about is the final dash-separated segment.
+        """
+        if not invoice_no:
+            return 0
+        tail = str(invoice_no).rsplit('-', 1)[-1].strip()
+        try:
+            return int(tail)
+        except (TypeError, ValueError):
+            return 0
+
+    @classmethod
+    def _initial_value(cls):
+        """
+        Highest invoice number currently present in the Sales table.
+
+        Used ONLY to seed the counter the very first time it is created,
+        so that an existing database with INV-0001..INV-0005 continues at
+        INV-0006 instead of colliding at INV-0001.
+        """
+        from django.apps import apps
+        sales_model = apps.get_model('yakuza', 'Sales')
+        highest = 0
+        for invoice_no in sales_model.objects.values_list('invoice_no', flat=True):
+            highest = max(highest, cls.extract_number(invoice_no))
+        return highest
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
 
     @classmethod
     def next_number(cls):
         """
         Atomically reserves and returns the next invoice number.
-        Call this ONLY when a bill is actually being created/saved.
+
+        Call this ONLY when a bill is actually being created -- never for
+        previews and never when editing an existing bill, so that no
+        number is consumed without a bill being issued for it.
+
+        NOTE ON ROLLBACK: if the surrounding request transaction rolls
+        back, this increment rolls back with it. That is correct and
+        safe: the bill was never created, so no number was ever shown to
+        a user or stored, and nothing is "reused". The guarantee that
+        matters -- a number belonging to a bill that WAS created is never
+        handed out again -- is unaffected, because a committed bill
+        implies a committed increment.
         """
         with transaction.atomic():
-            seq, _ = cls.objects.select_for_update().get_or_create(pk=1)
+            seq = cls.objects.select_for_update().filter(pk=1).first()
+            if seq is None:
+                # First ever use on this database: seed above existing data.
+                cls.objects.get_or_create(
+                    pk=1,
+                    defaults={'last_number': cls._initial_value()},
+                )
+                seq = cls.objects.select_for_update().get(pk=1)
+
             seq.last_number += 1
             seq.save(update_fields=['last_number'])
             return seq.last_number
 
     @classmethod
+    def next_invoice_no(cls, prefix, year=None):
+        """
+        Reserves the next number and formats it into a full invoice
+        number for the given prefix.
+
+        THIS IS THE SINGLE ENTRY POINT every bill-creation path must use
+        (the Sales page view, the DRF SalesSerializer, and any future
+        path), so that no two paths can ever issue the same number or
+        fall back to a count()-based scheme.
+
+        The loop is a defensive guard: if the counter is ever behind the
+        data (for example after a database restore that re-inserted bills
+        with their original numbers), a formatted number could collide
+        with an existing row. Rather than raising IntegrityError we skip
+        forward, consuming the taken numbers, until we reach a free one.
+        Numbers are still only ever moved FORWARD, so nothing is reused.
+        """
+        from django.apps import apps
+        sales_model = apps.get_model('yakuza', 'Sales')
+
+        if year is None:
+            year = timezone.now().year
+
+        prefix = (prefix or "INV-").strip() or "INV-"
+
+        for _ in range(1000):
+            seq_value = cls.next_number()
+
+            if prefix.endswith(f"{year}-"):
+                candidate = f"{prefix}{seq_value:04d}"
+            else:
+                candidate = f"{prefix}{year}-{seq_value:04d}"
+
+            if not sales_model.objects.filter(invoice_no=candidate).exists():
+                return candidate
+
+        raise RuntimeError(
+            "Unable to allocate a free invoice number after 1000 attempts; "
+            "the InvoiceSequence counter is badly out of sync with the "
+            "Sales table."
+        )
+
+    @classmethod
+    def peek_invoice_no(cls, prefix, year=None):
+        """
+        Formats the NEXT invoice number for display only, without
+        reserving it. Used by the Sales form preview.
+        """
+        if year is None:
+            year = timezone.now().year
+
+        prefix = (prefix or "INV-").strip() or "INV-"
+        seq_value = cls.peek_next()
+
+        if prefix.endswith(f"{year}-"):
+            return f"{prefix}{seq_value:04d}"
+        return f"{prefix}{year}-{seq_value:04d}"
+
+    @classmethod
+    def sync_to_existing_data(cls):
+        """
+        Pushes the counter forward so it sits above every invoice number
+        currently in the Sales table. Never moves the counter backwards.
+
+        Called after a backup restore, which re-inserts bills carrying
+        their original invoice numbers and would otherwise leave the
+        counter behind the data.
+        """
+        with transaction.atomic():
+            seq, _ = cls.objects.select_for_update().get_or_create(
+                pk=1, defaults={'last_number': 0}
+            )
+            highest = cls._initial_value()
+            if highest > seq.last_number:
+                seq.last_number = highest
+                seq.save(update_fields=['last_number'])
+            return seq.last_number
+
+    @classmethod
     def peek_next(cls):
         """
-        Read-only preview of what the next invoice number WOULD be,
-        without reserving/consuming it. Safe to call as many times as
-        needed (e.g. to display a preview on an empty Sales form) since
-        it never advances the counter.
+        Read-only preview of what the next invoice number WOULD be.
+
+        Does NOT reserve or consume anything, so it is safe to call on
+        every page load of the Sales form. Because it does not reserve,
+        two users opening the form at the same time will see the same
+        preview but will still receive different real numbers when they
+        actually save.
         """
         seq = cls.objects.filter(pk=1).first()
-        last = seq.last_number if seq else 0
+        last = seq.last_number if seq is not None else cls._initial_value()
         return last + 1
 
 
