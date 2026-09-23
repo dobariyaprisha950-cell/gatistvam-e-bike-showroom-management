@@ -70,7 +70,7 @@ class SalesForm(forms.ModelForm):
         model = Sales
         fields = [
             'invoice_date', 'customer_name', 'mobile_number', 'aadhar_number',
-            'stock', 'selling_price', 'payment_method'
+            'stock', 'selling_price', 'payment_method', 'extra_accessories'
         ]
         widgets = {
             'invoice_date': forms.DateInput(attrs={'type': 'date'}),

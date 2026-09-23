@@ -139,7 +139,16 @@
                                 </div>
                             </div>
 
-                            <!-- Row 6: Payment Method -->
+                            <!-- Row 6: Extra Accessories -->
+                            <div class="form-group full-width">
+                                <label for="extraAccessories">Extra Accessories</label>
+                                <div class="input-icon-wrapper">
+                                    <i class="input-icon fas fa-puzzle-piece"></i>
+                                    <input type="text" name="extra_accessories" id="extraAccessories" placeholder="e.g. Floor Mat, Helmet, Side Guard" value="{{ edit_sale.extra_accessories|default:'' }}">
+                                </div>
+                            </div>
+
+                            <!-- Row 7: Payment Method -->
                             <div class="form-group full-width">
                                 <label for="paymentType">Payment Method <span class="required">*</span></label>
                                 <div class="input-icon-wrapper">
@@ -217,7 +226,7 @@
                                 Mo. {{ invoice_setting.phone|default:branch.phone|default:sys_settings.company_phone }}
                             </p>
                             {% endif %}
-                            
+
                             {% if invoice_setting.gstin or sys_settings.gstin or branch.gst_number %}
                             <p class="comp-gst">
                                 GST NO. {{ invoice_setting.gstin|default:branch.gst_number|default:sys_settings.gstin }}
@@ -276,6 +285,10 @@
                                     <td class="text-right" id="previewPriceUnit">0.00</td>
                                     <td class="text-right" id="previewGstUnit">0.00</td>
                                     <td class="text-right" id="previewTotalAmount">0.00</td>
+                                </tr>
+                                <tr id="previewAccessoriesLine" style="display: none;">
+                                    <td class="text-center"></td>
+                                    <td colspan="7" style="text-align: left;"><strong>Extra Accessories:</strong> <span id="previewAccessories"></span></td>
                                 </tr>
                             </tbody>
                         </table>

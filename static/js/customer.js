@@ -131,6 +131,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
         document.getElementById("invModelName").textContent = data.model_name || "-";
         document.getElementById("invColor").textContent = data.color_name || "N/A";
+        const accessoriesLine = document.getElementById("invAccessoriesLine");
+        const accessoriesValue = document.getElementById("invAccessories");
+        if (accessoriesValue) accessoriesValue.textContent = data.extra_accessories || "";
+        if (accessoriesLine) accessoriesLine.style.display = (data.extra_accessories || "").trim() ? "" : "none";
         document.getElementById("invChassis").textContent = data.chassis_number || "N/A";
         document.getElementById("invBattery").textContent = data.battery_number || "N/A";
         document.getElementById("invMotor").textContent = data.motor_number || "N/A";
@@ -182,6 +186,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
             model_name: row.dataset.model || "-",
             color_name: row.dataset.color || "N/A",
+            extra_accessories: row.dataset.extraAccessories || "",
 
             chassis_number: row.dataset.chassis || "N/A",
             battery_number: row.dataset.battery || "N/A",
@@ -263,6 +268,12 @@ document.addEventListener("DOMContentLoaded", function () {
         printInvoiceBtn.addEventListener("click", function () {
             const printableArea = document.getElementById("printable-invoice-container");
             const printClone = printableArea.cloneNode(true);
+            const accessoriesRow = printClone.querySelector("#invAccessoriesLine");
+            const vehicleSpecs = printClone.querySelector("#invVehicleSpecs");
+            if (accessoriesRow && accessoriesRow.style.display !== "none") {
+                accessoriesRow.classList.add("print-accessories-row");
+                vehicleSpecs?.classList.add("print-accessories-divider");
+            }
 
         // Terms & Conditions section ne print-specific classes aapo
         const termsSection = printClone.lastElementChild;
@@ -307,6 +318,9 @@ document.addEventListener("DOMContentLoaded", function () {
                         table { width: 100%; max-width: 100%; border-collapse: collapse; table-layout: fixed; box-sizing: border-box; }
                         th, td { border: 1.5px solid #000000 !important; border-collapse: collapse !important; padding: 8px 5px; font-size: 10px !important; line-height: 1.3; vertical-align: middle; word-wrap: break-word; overflow-wrap: break-word; text-align: center; }
                         th { font-weight: 600; background: #f2f2f2; }
+                        #printable-invoice-container tbody tr:first-child > td:nth-child(2) { text-align: left !important; }
+                        .print-accessories-row > td { border-bottom: 0 !important; }
+                        .print-accessories-divider { border-top: 1.5px solid #000000 !important; }
                         .bill-header, .bill-to-box, .bill-table, .inv-payment-summary-flex{ margin: 8px 0 !important; page-break-inside: avoid; break-inside: avoid; }
                         .bill-outer-border { border: 1px solid #000; padding: 8mm; box-sizing: border-box; }
                         .grand-total { font-weight: 700; font-size: 11px; border-top: 1px solid #000; padding-top: 3px; }

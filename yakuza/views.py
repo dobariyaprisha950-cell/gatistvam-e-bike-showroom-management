@@ -1887,6 +1887,7 @@ def sales(request):
             battery_number = request.POST.get('battery_number', '').strip()
             motor_number = request.POST.get('motor_number', '').strip()
             controller_number = request.POST.get('controller_number', '').strip()
+            extra_accessories = request.POST.get('extra_accessories', '')
             payment_type = request.POST.get('payment_type', 'CASH')
 
             if (
@@ -2091,6 +2092,7 @@ def sales(request):
                 sale.customer_name = customer_name
                 sale.mobile_number = contact_number
                 sale.aadhar_number = aadhar_number
+                sale.extra_accessories = extra_accessories
                 sale.payment_method = payment_method
                 sale.selling_price = price_val
                 sale.stock = stock_obj
@@ -2135,6 +2137,7 @@ def sales(request):
                     customer_name=customer_name,
                     mobile_number=contact_number,
                     aadhar_number=aadhar_number,
+                    extra_accessories=extra_accessories,
                     invoice_no=auto_inv,
                     payment_method=payment_method,
                     selling_price=price_val,
@@ -2219,6 +2222,7 @@ def sales(request):
                     'payment_method': (
                         sale.get_payment_method_display()
                     ),
+                    'extra_accessories': sale.extra_accessories,
                     'created_at': sale.created_at.strftime(
                         '%Y-%m-%d'
                     )
@@ -2597,6 +2601,7 @@ def get_customer_invoice_ajax(request, sale_id):
             "payment_method": sale.get_payment_method_display(),
             "model_name": stock.model.model_name if stock and stock.model else "-",
             "color_name": stock.color.color_name if stock and stock.color else "N/A",
+            "extra_accessories": sale.extra_accessories,
             "chassis_number": stock.chassis_number if stock else "N/A",
             "battery_number": stock.battery_number if stock else "N/A",
             "motor_number": stock.motor_number if stock else "N/A",

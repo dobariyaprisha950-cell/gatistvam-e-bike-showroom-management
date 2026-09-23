@@ -396,6 +396,7 @@ class Sales(models.Model):
     customer_name = models.CharField(max_length=150)
     mobile_number = models.CharField(max_length=10, validators=[validate_mobile_number])
     aadhar_number = models.CharField(max_length=12, validators=[validate_aadhar_number], blank=True, null=True)
+    extra_accessories = models.TextField(blank=True, default='')
     stock = models.OneToOneField(Stock, on_delete=models.PROTECT, related_name='sale_transaction')
     selling_price = models.DecimalField(max_digits=10, decimal_places=2)
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, editable=False)
