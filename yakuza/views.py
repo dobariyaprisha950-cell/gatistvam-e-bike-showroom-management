@@ -360,7 +360,7 @@ class VehicleModelViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         branch = get_user_branch_context(self.request)
-        return VehicleModel.objects.filter(branch=branch) if branch else VehicleModel.objects.none()
+        return VehicleModel.objects.filter(branch=branch, is_active=True) if branch else VehicleModel.objects.none()
 
     def perform_create(self, serializer):
         branch = get_user_branch_context(self.request)
@@ -1746,6 +1746,22 @@ def edit_model_ajax(request, model_id):
 
 @login_required
 @require_POST
+def delete_model_ajax(request, model_id):
+    branch = get_user_branch_context(request)
+    if not branch:
+        return JsonResponse({'success': False, 'error': 'Select a specific branch before deleting a model.'}, status=400)
+    model_obj = get_object_or_404(VehicleModel, id=model_id, branch=branch)
+    referenced = model_obj.stock_set.exists() or model_obj.purchaseitem_set.exists()
+    if referenced:
+        model_obj.is_active = False
+        model_obj.save(update_fields=['is_active'])
+        return JsonResponse({'success': True, 'archived': True})
+    model_obj.delete()
+    return JsonResponse({'success': True, 'archived': False})
+
+
+@login_required
+@require_POST
 def edit_color_ajax(request, color_id):
     """
     Corrects the spelling of an EXISTING VehicleColor IN PLACE.
@@ -1888,6 +1904,7 @@ def sales(request):
             motor_number = request.POST.get('motor_number', '').strip()
             controller_number = request.POST.get('controller_number', '').strip()
             extra_accessories = request.POST.get('extra_accessories', '')
+            voltage = request.POST.get('voltage', '').strip()
             payment_type = request.POST.get('payment_type', 'CASH')
 
             if (
@@ -2093,6 +2110,7 @@ def sales(request):
                 sale.mobile_number = contact_number
                 sale.aadhar_number = aadhar_number
                 sale.extra_accessories = extra_accessories
+                sale.voltage = voltage
                 sale.payment_method = payment_method
                 sale.selling_price = price_val
                 sale.stock = stock_obj
@@ -2138,6 +2156,7 @@ def sales(request):
                     mobile_number=contact_number,
                     aadhar_number=aadhar_number,
                     extra_accessories=extra_accessories,
+                    voltage=voltage,
                     invoice_no=auto_inv,
                     payment_method=payment_method,
                     selling_price=price_val,
@@ -2200,6 +2219,7 @@ def sales(request):
                     'customer_name': sale.customer_name,
                     'mobile_number': sale.mobile_number,
                     'model_name': stock_obj.model.model_name,
+                    'voltage': sale.voltage,
                     'color': (
                         stock_obj.color.color_name
                         if stock_obj.color
@@ -2600,6 +2620,7 @@ def get_customer_invoice_ajax(request, sale_id):
             "aadhar_number": sale.aadhar_number or "",
             "payment_method": sale.get_payment_method_display(),
             "model_name": stock.model.model_name if stock and stock.model else "-",
+            "voltage": sale.voltage or "",
             "color_name": stock.color.color_name if stock and stock.color else "N/A",
             "extra_accessories": sale.extra_accessories,
             "chassis_number": stock.chassis_number if stock else "N/A",

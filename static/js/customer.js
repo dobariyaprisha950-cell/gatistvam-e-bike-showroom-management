@@ -129,7 +129,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         document.getElementById("invAddress").textContent = data.branch_name || "Main Branch";
 
-        document.getElementById("invModelName").textContent = data.model_name || "-";
+        document.getElementById("invModelName").textContent = `${data.model_name || "-"}${data.voltage ? ` ${data.voltage}` : ""}`;
         document.getElementById("invColor").textContent = data.color_name || "N/A";
         const accessoriesLine = document.getElementById("invAccessoriesLine");
         const accessoriesValue = document.getElementById("invAccessories");
@@ -185,6 +185,7 @@ document.addEventListener("DOMContentLoaded", function () {
             payment_method: row.dataset.payment || "Cash",
 
             model_name: row.dataset.model || "-",
+            voltage: row.dataset.voltage || "",
             color_name: row.dataset.color || "N/A",
             extra_accessories: row.dataset.extraAccessories || "",
 

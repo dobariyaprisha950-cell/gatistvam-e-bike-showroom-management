@@ -840,6 +840,12 @@
 
 .close-modal:hover { color: #0f172a; }
 
+.custom-modal-header button.close-modal {
+    border: 0;
+    padding: 0;
+    background: transparent;
+}
+
 .custom-modal-body {
     padding: 18px;
     font-size: 13px;

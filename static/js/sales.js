@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const modelNameInput = document.getElementById("modelName");
     const vehicleColorInput = document.getElementById("vehicleColor");
+    const voltageInput = document.getElementById("voltage");
     const chassisNumberInput = document.getElementById("chassisNumber");
     const priceInput = document.getElementById("price");
     const batteryNumberInput = document.getElementById("batteryNumber");
@@ -324,7 +325,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     if (previewCustomerName) previewCustomerName.textContent = customerNameInput?.value || '';
                     if (previewContactNo) previewContactNo.textContent = contactNumberInput?.value || '';
                     if (previewAadhaar) previewAadhaar.textContent = maskAadhaarNumber(aadharNumberInput?.value);
-                    if (previewModelName) previewModelName.textContent = modelNameInput?.options ? modelNameInput.options[modelNameInput.selectedIndex]?.text : (modelNameInput?.value || '');
+                    if (previewModelName) previewModelName.textContent = `${modelNameInput?.value || ''}${voltageInput?.value.trim() ? ` ${voltageInput.value.trim()}` : ''}`;
                     if (previewColor) previewColor.textContent = vehicleColorInput?.value || 'N/A';
                     const accessories = extraAccessoriesInput?.value || "";
                     if (previewAccessories) previewAccessories.textContent = accessories;

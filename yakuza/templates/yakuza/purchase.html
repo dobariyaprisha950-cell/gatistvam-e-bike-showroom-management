@@ -147,6 +147,9 @@
                             <button type="button" id="btnEditModelName" class="btn-icon-action" title="Edit Model Name" disabled>
                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                             </button>
+                            <button type="button" id="btnDeleteModel" class="btn-icon-action" title="Delete Model" data-url-template="{% url 'yakuza:delete_model_ajax' 0 %}" disabled>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                            </button>
                         </div>
                     </div>
 
@@ -348,6 +351,24 @@
     </div>
 </div>
 
+<!-- Model Delete Confirmation Modal -->
+<div class="custom-modal d-none" id="modalConfirmModelDelete" role="dialog" aria-modal="true" aria-labelledby="modelDeleteModalTitle">
+    <div class="custom-modal-content max-w-400">
+        <div class="custom-modal-header">
+            <h3 id="modelDeleteModalTitle">Delete Model?</h3>
+            <span class="close-modal" id="btnCloseModelDeleteModal" role="button" tabindex="0" aria-label="Close">&times;</span>
+        </div>
+        <div class="custom-modal-body">
+            <p id="modelDeleteConfirmText">Are you sure you want to delete this model?</p>
+            <div class="modal-inline-error d-none mt-10" id="modelDeleteError" role="alert"></div>
+        </div>
+        <div class="custom-modal-footer">
+            <button type="button" class="btn-secondary" id="btnCancelModelDelete">Cancel</button>
+            <button type="button" class="btn-danger-submit" id="btnConfirmModelDelete">Delete</button>
+        </div>
+    </div>
+</div>
+
 <!-- Add Supplier Modal -->
 <div class="custom-modal d-none" id="modalAddSupplier">
     <div class="custom-modal-content max-w-400">
@@ -467,5 +488,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/purchase.js' %}"></script>
+<script src="{% static 'js/purchase.js' %}?v=3"></script>
 {% endblock %}

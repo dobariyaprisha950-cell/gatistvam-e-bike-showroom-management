@@ -46,6 +46,7 @@ urlpatterns = [
     path('ajax/add-company/', views.add_company_ajax, name='add_company_ajax'),
     path('ajax/add-model/', views.add_model_ajax, name='add_model_ajax'),
     path('ajax/edit-model/<int:model_id>/', views.edit_model_ajax, name='edit_model_ajax'),
+    path('ajax/delete-model/<int:model_id>/', views.delete_model_ajax, name='delete_model_ajax'),
     path('ajax/add-color/', views.add_color_ajax, name='add_color_ajax'),
     path('ajax/edit-color/<int:color_id>/', views.edit_color_ajax, name='edit_color_ajax'),
     path('purchase_history/', views.purchase_history, name='purchase_history'),

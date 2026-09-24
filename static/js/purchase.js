@@ -75,6 +75,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let editingEntryId = null;
     let pendingDeleteEntryId = null;
     let activeColorAllocEntryId = null;
+    let pendingModelDeleteId = null;
 
     // Temporary working array inside Color Allocation Modal
     let currentModalColorRows = [];
@@ -98,6 +99,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const entryModelSelect = document.getElementById('entry_model');
     const btnEditModelName = document.getElementById('btnEditModelName');
+    const btnDeleteModel = document.getElementById('btnDeleteModel');
+    const modalConfirmModelDelete = document.getElementById('modalConfirmModelDelete');
+    const modelDeleteConfirmText = document.getElementById('modelDeleteConfirmText');
+    const modelDeleteError = document.getElementById('modelDeleteError');
+    const btnConfirmModelDelete = document.getElementById('btnConfirmModelDelete');
+    function syncModelActionButtons() {
+        const hasSelectedModel = Boolean(entryModelSelect && entryModelSelect.value && entryModelSelect.value !== '__add_new__');
+        if (btnEditModelName) btnEditModelName.disabled = !hasSelectedModel;
+        if (btnDeleteModel) btnDeleteModel.disabled = !hasSelectedModel;
+    }
     const entryQuantityInput = document.getElementById('entry_quantity');
     const entryUnitPriceInput = document.getElementById('entry_unit_price');
     const btnAddVehicleRow = document.getElementById('btnAddVehicleRow');
@@ -290,6 +301,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (currentVal && currentVal !== '__add_new__') {
             entryModelSelect.value = currentVal;
         }
+        syncModelActionButtons();
     }
 
     // ==========================================
@@ -387,7 +399,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (modalAddModel) modalAddModel.classList.remove('d-none');
                 this.value = '';
             }
-            if (btnEditModelName) btnEditModelName.disabled = !(this.value && this.value !== '__add_new__');
+            syncModelActionButtons();
         });
     }
 
@@ -448,6 +460,83 @@ document.addEventListener('DOMContentLoaded', function () {
     if (btnEditModelName) {
         btnEditModelName.addEventListener('click', function () {
             openEditModelModal(entryModelSelect.value);
+        });
+    }
+    if (btnDeleteModel) {
+        btnDeleteModel.addEventListener('click', function () {
+            const modelId = entryModelSelect?.value;
+            const modelObj = availableModels.find(m => String(m.id) === String(modelId));
+            if (!modelObj || !modalConfirmModelDelete) return;
+            pendingModelDeleteId = String(modelId);
+            const modelName = modelObj.model_name || modelObj.name || 'this model';
+            if (modelDeleteConfirmText) {
+                modelDeleteConfirmText.textContent = `Are you sure you want to delete ${modelName}? Referenced models will be archived to preserve history.`;
+            }
+            if (modelDeleteError) {
+                modelDeleteError.textContent = '';
+                modelDeleteError.classList.add('d-none');
+            }
+            modalConfirmModelDelete.classList.remove('d-none');
+            btnConfirmModelDelete?.focus();
+        });
+    }
+
+    function closeModelDeleteModal() {
+        if (modalConfirmModelDelete) modalConfirmModelDelete.classList.add('d-none');
+        pendingModelDeleteId = null;
+        if (modelDeleteError) {
+            modelDeleteError.textContent = '';
+            modelDeleteError.classList.add('d-none');
+        }
+        if (btnConfirmModelDelete) btnConfirmModelDelete.disabled = false;
+    }
+
+    const btnCancelModelDelete = document.getElementById('btnCancelModelDelete');
+    const btnCloseModelDeleteModal = document.getElementById('btnCloseModelDeleteModal');
+    if (btnCancelModelDelete) btnCancelModelDelete.addEventListener('click', closeModelDeleteModal);
+    if (btnCloseModelDeleteModal) btnCloseModelDeleteModal.addEventListener('click', closeModelDeleteModal);
+    if (btnCloseModelDeleteModal) {
+        btnCloseModelDeleteModal.addEventListener('keydown', event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                closeModelDeleteModal();
+            }
+        });
+    }
+    if (modalConfirmModelDelete) {
+        modalConfirmModelDelete.addEventListener('click', event => {
+            if (event.target === modalConfirmModelDelete) closeModelDeleteModal();
+        });
+    }
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && modalConfirmModelDelete && !modalConfirmModelDelete.classList.contains('d-none')) {
+            closeModelDeleteModal();
+        }
+    });
+
+    if (btnConfirmModelDelete) {
+        btnConfirmModelDelete.addEventListener('click', async function () {
+            const modelId = pendingModelDeleteId;
+            if (!modelId) return;
+            btnConfirmModelDelete.disabled = true;
+            try {
+                const urlTemplate = btnDeleteModel.dataset.urlTemplate;
+                if (!urlTemplate) throw new Error('Delete model URL is not configured.');
+                const result = await apiRequest(urlTemplate.replace('/0/', `/${encodeURIComponent(modelId)}/`), { method: 'POST' });
+                if (!result || result.success !== true) throw new Error(result?.error || 'Unable to delete model.');
+                availableModels = availableModels.filter(m => String(m.id) !== String(modelId));
+                populateModelSelect();
+                entryModelSelect.value = '';
+                if (btnEditModelName) btnEditModelName.disabled = true;
+                btnDeleteModel.disabled = true;
+                closeModelDeleteModal();
+            } catch (error) {
+                if (modelDeleteError) {
+                    modelDeleteError.textContent = error.message || 'Unable to delete model.';
+                    modelDeleteError.classList.remove('d-none');
+                }
+                btnConfirmModelDelete.disabled = false;
+            }
         });
     }
 
@@ -552,6 +641,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     const correctedName = result.name || modelName;
                     await fetchModels();
                     entryModelSelect.value = editingModelId;
+                    syncModelActionButtons();
 
                     // Reflect the corrected spelling in any Vehicle Entries rows
                     // already added to this purchase that reference this model.
@@ -605,6 +695,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 } else if (availableModels.length > 0) {
                     entryModelSelect.value = availableModels[availableModels.length - 1].id;
                 }
+                syncModelActionButtons();
 
                 if (input) input.value = '';
                 if (modalAddModel) modalAddModel.classList.add('d-none');

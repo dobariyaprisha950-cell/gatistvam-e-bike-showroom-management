@@ -75,7 +75,7 @@
                                 </div>
                             </div>
 
-                            <!-- Row 3: Vehicle Color & Base Price -->
+                            <!-- Row 3: Vehicle Color & Voltage -->
                             <div class="form-group">
                                 <label for="vehicleColor">Vehicle Color <span class="required">*</span></label>
                                 <div class="input-icon-wrapper">
@@ -97,10 +97,10 @@
                             </div>
 
                             <div class="form-group">
-                                <label for="price">Base Price (Excl. GST) (₹) <span class="required">*</span></label>
+                                <label for="voltage">Voltage</label>
                                 <div class="input-icon-wrapper">
-                                    <i class="input-icon fas fa-rupee-sign"></i>
-                                    <input type="number" name="price" id="price" placeholder="Enter Price" value="{% if edit_sale %}{{ edit_sale.selling_price }}{% endif %}" min="0" step="any" required>
+                                    <i class="input-icon fas fa-bolt"></i>
+                                    <input type="text" name="voltage" id="voltage" placeholder="e.g. 60V" value="{{ edit_sale.voltage|default:'' }}">
                                 </div>
                             </div>
 
@@ -139,12 +139,20 @@
                                 </div>
                             </div>
 
-                            <!-- Row 6: Extra Accessories -->
-                            <div class="form-group full-width">
+                            <!-- Row 6: Extra Accessories & Base Price -->
+                            <div class="form-group">
                                 <label for="extraAccessories">Extra Accessories</label>
                                 <div class="input-icon-wrapper">
                                     <i class="input-icon fas fa-puzzle-piece"></i>
                                     <input type="text" name="extra_accessories" id="extraAccessories" placeholder="e.g. Floor Mat, Helmet, Side Guard" value="{{ edit_sale.extra_accessories|default:'' }}">
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="price">Base Price (Excl. GST) (₹) <span class="required">*</span></label>
+                                <div class="input-icon-wrapper">
+                                    <i class="input-icon fas fa-rupee-sign"></i>
+                                    <input type="number" name="price" id="price" placeholder="Enter Price" value="{% if edit_sale %}{{ edit_sale.selling_price }}{% endif %}" min="0" step="any" required>
                                 </div>
                             </div>
 
@@ -380,17 +388,17 @@
 
             <!-- MODAL ACTION BUTTONS -->
             <div class="popup-actions-v2">
+                <button type="button" class="btn-action sales-btn" id="btnEditSale" style="background: #f59e0b; color: white; border: none; padding: 8px 14px; border-radius: 4px; font-weight: bold; cursor: pointer;">
+                    <i class="fas fa-edit"></i> Edit
+                </button>
                 <button type="button" class="btn-action btn-print-v2" id="btnPrintInvoice">
-                    <i class="fas fa-print"></i> PRINT
+                    <i class="fas fa-print"></i> Print Invoice
                 </button>
                 <button type="button" class="btn-action btn-whatsapp-v2" id="btnWhatsAppShare">
                     <i class="fab fa-whatsapp"></i> SHARE ON WHATSAPP
                 </button>
-                <button type="button" class="btn-action btn-edit-v2" id="btnEditSale">
-                    <i class="fas fa-edit"></i> EDIT
-                </button>
-                <button type="button" class="btn-action btn-ok-v2" id="btnOkInvoice">
-                    <i class="fas fa-check-circle"></i> OK
+                <button type="button" class="btn-action sales-btn sales-btn-close" id="btnOkInvoice" style="background: #64748b; color: white; border: none; padding: 8px 14px; border-radius: 4px; font-weight: bold; cursor: pointer;">
+                    <i class="fas fa-times"></i> Close
                 </button>
             </div>
             

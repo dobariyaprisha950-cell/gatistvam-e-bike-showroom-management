@@ -621,8 +621,21 @@
 
 .btn-print-v2 { background-color: var(--print-color); color: #ffffff; }
 .btn-whatsapp-v2 { background-color: var(--whatsapp-color); color: #ffffff; }
-.btn-edit-v2 { background-color: var(--edit-color); color: #ffffff; }
-.btn-ok-v2 { background-color: var(--ok-color); color: #ffffff; }
+.popup-actions-v2 .sales-btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background-color 0.15s;
+}
+.popup-actions-v2 .sales-btn-close { background-color: #e2e8f0; color: #334155; }
+.popup-actions-v2 .sales-btn-close:hover { background-color: #cbd5e1; }
+.popup-actions-v2 .sales-btn:hover { filter: none; }
 
 @media (max-width: 600px) {
     .bill-footer-flex,

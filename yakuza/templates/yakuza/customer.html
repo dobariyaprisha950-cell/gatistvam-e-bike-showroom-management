@@ -74,6 +74,7 @@
                         data-phone="{{ customer.mobile_number }}" 
                         data-aadhar="{{ customer.aadhar_number|default:'' }}"
                         data-model="{{ customer.stock.model.model_name|default:'' }}" 
+                        data-voltage="{{ customer.voltage|default:'' }}"
                         data-color="{{ customer.stock.color.color_name|default:'N/A' }}"
                         data-extra-accessories="{{ customer.extra_accessories|default:'' }}"
                         data-payment="{{ customer.get_payment_method_display }}" 
@@ -96,7 +97,7 @@
                         <td><strong>{{ customer.invoice_no }}</strong></td>
                         <td>{{ customer.customer_name }}</td>
                         <td>{{ customer.mobile_number }}</td>
-                        <td>{{ customer.stock.model.model_name|default:"-" }}</td>
+                        <td>{% with model_name=customer.stock.model.model_name|default:"-" %}{{ model_name }}{% if customer.voltage %} {{ customer.voltage }}{% endif %} ({{ customer.stock.color.color_name|default:"N/A" }}){% endwith %}</td>
                         <td><span class="badge badge-info">{{ customer.get_payment_method_display }}</span></td>
                         <td>{{ customer.created_at|date:'Y-m-d' }}</td>
                         <td>
