@@ -7,6 +7,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const modelNameInput = document.getElementById("modelName");
     const vehicleColorInput = document.getElementById("vehicleColor");
     const voltageInput = document.getElementById("voltage");
+    const billingAddressInput = document.getElementById("billingAddress");
     const chassisNumberInput = document.getElementById("chassisNumber");
     const priceInput = document.getElementById("price");
     const batteryNumberInput = document.getElementById("batteryNumber");
@@ -34,12 +35,37 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnOkInvoice = document.getElementById("btnOkInvoice");
     const salesForm = document.getElementById("salesForm");
     const currentSaleIdInput = document.getElementById("current_sale_id");
+    const saleInvoiceDateInput = document.getElementById("saleInvoiceDate");
+    const headerDateInput = document.getElementById("hiddenDateInput");
+    const headerDateText = document.getElementById("dateText");
+
+    function syncSaleDateToHeader() {
+        if (!saleInvoiceDateInput?.value || !headerDateInput) return;
+        headerDateInput.value = saleInvoiceDateInput.value;
+        if (headerDateText) {
+            const [year, month, day] = saleInvoiceDateInput.value.split('-').map(Number);
+            headerDateText.textContent = new Date(year, month - 1, day).toLocaleDateString('en-GB', {
+                day: 'numeric', month: 'long', year: 'numeric'
+            });
+        }
+    }
+
+    // The shared header date picker is the existing Sales Date control.
+    // Keep its selected value tied to this individual Sale, including on edit.
+    syncSaleDateToHeader();
+    window.addEventListener('load', syncSaleDateToHeader);
+    if (headerDateInput && saleInvoiceDateInput) {
+        headerDateInput.addEventListener('change', () => {
+            saleInvoiceDateInput.value = headerDateInput.value;
+        });
+    }
 
     // Preview elements
     const previewInvoiceNo = document.getElementById("previewInvoiceNo");
     const previewInvoiceDate = document.getElementById("previewInvoiceDate");
     const previewCustomerName = document.getElementById("previewCustomerName");
     const previewContactNo = document.getElementById("previewContactNo");
+    const previewBillingAddress = document.getElementById("previewBillingAddress");
     const previewAadhaar = document.getElementById("previewAadhaar");
     const previewModelName = document.getElementById("previewModelName");
     const previewColor = document.getElementById("previewColor");
@@ -134,11 +160,9 @@ document.addEventListener("DOMContentLoaded", () => {
         return true; 
     }
 
-    function getFormattedDate() {
-        const today = new Date();
-        const d = String(today.getDate()).padStart(2, '0');
-        const m = String(today.getMonth() + 1).padStart(2, '0');
-        const y = today.getFullYear();
+    function getFormattedDate(value) {
+        if (!value) return '';
+        const [y, m, d] = value.split('-');
         return `${d}/${m}/${y}`;
     }
 
@@ -321,9 +345,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
                     if (currentSaleIdInput) currentSaleIdInput.value = result.sale_id;
                     if (previewInvoiceNo) previewInvoiceNo.textContent = result.invoice_no;
-                    if (previewInvoiceDate) previewInvoiceDate.textContent = getFormattedDate();
+                    if (result.invoice_date && saleInvoiceDateInput) {
+                        saleInvoiceDateInput.value = result.invoice_date;
+                        if (headerDateInput) headerDateInput.value = result.invoice_date;
+                        syncSaleDateToHeader();
+                    }
+                    if (previewInvoiceDate) previewInvoiceDate.textContent = getFormattedDate(result.invoice_date);
                     if (previewCustomerName) previewCustomerName.textContent = customerNameInput?.value || '';
                     if (previewContactNo) previewContactNo.textContent = contactNumberInput?.value || '';
+                    if (previewBillingAddress) previewBillingAddress.textContent = billingAddressInput?.value || '';
                     if (previewAadhaar) previewAadhaar.textContent = maskAadhaarNumber(aadharNumberInput?.value);
                     if (previewModelName) previewModelName.textContent = `${modelNameInput?.value || ''}${voltageInput?.value.trim() ? ` ${voltageInput.value.trim()}` : ''}`;
                     if (previewColor) previewColor.textContent = vehicleColorInput?.value || 'N/A';
@@ -351,6 +381,14 @@ document.addEventListener("DOMContentLoaded", () => {
                     if (previewSgst) previewSgst.textContent = billCalc.sgst.toFixed(2);
                     if (previewCgst) previewCgst.textContent = billCalc.cgst.toFixed(2);
                     if (previewFinalAmount) previewFinalAmount.textContent = billCalc.grandTotal.toFixed(2);
+
+                    // Keep the saved PDF aligned with the Sale-specific data,
+                    // including Billing Address, after both new saves and edits.
+                    try {
+                        await generateAndUploadPdf(result.sale_id, result.invoice_no, result.customer_name);
+                    } catch (err) {
+                        console.error("Invoice PDF refresh error:", err);
+                    }
 
                     openModal();
                 } else {

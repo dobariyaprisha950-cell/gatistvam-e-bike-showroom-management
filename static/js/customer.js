@@ -70,6 +70,11 @@ document.addEventListener("DOMContentLoaded", function () {
         const num = parseFloat(val) || 0;
         return num.toFixed(2);
     }
+    function formatInvoiceDate(value) {
+        if (!value) return "-";
+        const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
+    }
     function showInvoicePopup(message) {
     const existingPopup = document.getElementById("invoiceMessagePopup");
 
@@ -115,7 +120,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function populateModalData(data) {
         document.getElementById("invNo").textContent = data.invoice_no || "-";
-        document.getElementById("invDate").textContent = data.invoice_date || "-";
+        document.getElementById("invDate").textContent = formatInvoiceDate(data.invoice_date);
 
         
 
@@ -127,7 +132,7 @@ document.addEventListener("DOMContentLoaded", function () {
             invAadhaar.textContent = maskAadhaarNumber(data.aadhar_number);
         }
 
-        document.getElementById("invAddress").textContent = data.branch_name || "Main Branch";
+        document.getElementById("invAddress").textContent = data.billing_address || "";
 
         document.getElementById("invModelName").textContent = `${data.model_name || "-"}${data.voltage ? ` ${data.voltage}` : ""}`;
         document.getElementById("invColor").textContent = data.color_name || "N/A";
@@ -178,7 +183,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
         populateModalData({
             invoice_no: row.dataset.invoiceNo || "-",
-            invoice_date: row.dataset.date || "-",
+            // Use the Sale's stored invoice date only. data-date is the
+            // Customer table's created-at filter value, not the bill date.
+            invoice_date: row.dataset.invoiceDate || "-",
             customer_name: row.dataset.customerName || "-",
             mobile_number: row.dataset.phone || "-",
             aadhar_number: row.dataset.aadhar || "N/A",
@@ -202,12 +209,14 @@ document.addEventListener("DOMContentLoaded", function () {
             grand_total: row.dataset.grandTotal || 0,
 
             branch_name: row.dataset.branch || "Main Branch",
+            billing_address: row.dataset.billingAddress || "",
             branch_address: row.dataset.branchAddress || "",
             branch_phone: row.dataset.branchPhone || "",
             branch_gst: row.dataset.branchGst || ""
         });
 
         fetch(`/customer/invoice-data/${currentSaleId}/`, {
+            cache: "no-store",
             headers: {
                 "X-Requested-With": "XMLHttpRequest"
             }
@@ -446,6 +455,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
             const invoiceResponse = await fetch(`/customer/invoice-data/${saleId}/`, {
                 method: "GET",
+                cache: "no-store",
                 headers: { "X-Requested-With": "XMLHttpRequest" }
             });
 

@@ -88,7 +88,9 @@
                         data-battery="{{ customer.stock.battery_number|default:'N/A' }}"
                         data-motor="{{ customer.stock.motor_number|default:'N/A' }}"
                         data-controller="{{ customer.stock.controller_number|default:'N/A' }}"
-                        data-date="{{ customer.created_at|date:'Y-m-d' }}"
+                        data-date="{{ customer.invoice_date|date:'Y-m-d' }}"
+                        data-invoice-date="{{ customer.invoice_date|date:'Y-m-d' }}"
+                        data-billing-address="{{ customer.billing_address|default:'' }}"
                         data-branch="{{ customer.stock.branch.branch_name|default:'Main Branch' }}"
                         data-branch-address="{{ customer.stock.branch.address|default:'' }}"
                         data-branch-phone="{{ customer.stock.branch.phone|default:'' }}"
@@ -99,7 +101,7 @@
                         <td>{{ customer.mobile_number }}</td>
                         <td>{% with model_name=customer.stock.model.model_name|default:"-" %}{{ model_name }}{% if customer.voltage %} {{ customer.voltage }}{% endif %} ({{ customer.stock.color.color_name|default:"N/A" }}){% endwith %}</td>
                         <td><span class="badge badge-info">{{ customer.get_payment_method_display }}</span></td>
-                        <td>{{ customer.created_at|date:'Y-m-d' }}</td>
+                        <td>{{ customer.invoice_date|date:'d/m/Y' }}</td>
                         <td>
                             <div style="display: flex; gap: 5px; align-items: center;">
                                 <button type="button" class="btn btn-primary btn-sm view-invoice-btn" data-id="{{ customer.id }}">View</button>
@@ -316,5 +318,5 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-<script src="{% static 'js/customer.js' %}"></script>
+<script src="{% static 'js/customer.js' %}?v=3"></script>
 {% endblock %}

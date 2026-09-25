@@ -27,6 +27,7 @@ from django.template.loader import render_to_string
 from xhtml2pdf import pisa
 from django.views.decorators.http import require_http_methods, require_POST, require_GET
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.http import JsonResponse, HttpResponse, FileResponse
@@ -967,8 +968,8 @@ def live_stock(request):
     branch = get_user_branch_context(request)
 
     stock_qs = Stock.objects.filter(
-        stock_status=Stock.StockStatus.AVAILABLE
-    ).select_related('model', 'color', 'company', 'model__company')
+        stock_status=Stock.StockStatus.AVAILABLE,
+    ).select_related('model', 'color', 'company', 'model__company', 'purchase_item__model__company')
 
     if branch is not None:
         stock_qs = stock_qs.filter(branch=branch)
@@ -977,9 +978,11 @@ def live_stock(request):
     available_color_ids = set()
 
     for item in stock_qs:
-        model_obj = item.model
+        # PurchaseItem is the saved Purchase History source. Prefer its
+        # current model for purchased stock, falling back for legacy rows.
+        model_obj = item.purchase_item.model if item.purchase_item_id and item.purchase_item else item.model
         color_obj = item.color
-        if not model_obj or not color_obj:
+        if not model_obj or not model_obj.is_active or not color_obj:
             continue
 
         available_color_ids.add(color_obj.id)
@@ -1905,7 +1908,16 @@ def sales(request):
             controller_number = request.POST.get('controller_number', '').strip()
             extra_accessories = request.POST.get('extra_accessories', '')
             voltage = request.POST.get('voltage', '').strip()
+            billing_address = request.POST.get('billing_address', '').strip()
             payment_type = request.POST.get('payment_type', 'CASH')
+            invoice_date_value = request.POST.get('invoice_date', '').strip()
+            sale_date = parse_date(invoice_date_value) if invoice_date_value else None
+
+            if invoice_date_value and sale_date is None:
+                return JsonResponse(
+                    {'status': 'error', 'message': 'Please enter a valid sale date.'},
+                    status=400
+                )
 
             if (
                 not customer_name
@@ -2111,6 +2123,9 @@ def sales(request):
                 sale.aadhar_number = aadhar_number
                 sale.extra_accessories = extra_accessories
                 sale.voltage = voltage
+                sale.billing_address = billing_address
+                if sale_date:
+                    sale.invoice_date = sale_date
                 sale.payment_method = payment_method
                 sale.selling_price = price_val
                 sale.stock = stock_obj
@@ -2157,9 +2172,11 @@ def sales(request):
                     aadhar_number=aadhar_number,
                     extra_accessories=extra_accessories,
                     voltage=voltage,
+                    billing_address=billing_address,
                     invoice_no=auto_inv,
                     payment_method=payment_method,
                     selling_price=price_val,
+                    invoice_date=sale_date or timezone.localdate(),
                     created_by=request.user
                 )
 
@@ -2216,10 +2233,12 @@ def sales(request):
                     'status': 'success',
                     'sale_id': sale.id,
                     'invoice_no': sale.invoice_no,
+                    'invoice_date': sale.invoice_date.strftime('%Y-%m-%d') if sale.invoice_date else '',
                     'customer_name': sale.customer_name,
                     'mobile_number': sale.mobile_number,
                     'model_name': stock_obj.model.model_name,
                     'voltage': sale.voltage,
+                    'billing_address': sale.billing_address,
                     'color': (
                         stock_obj.color.color_name
                         if stock_obj.color
@@ -2328,6 +2347,7 @@ def sales(request):
         if branch
         else "All Branches"
     )
+    default_billing_address = branch.branch_name if branch else ''
 
     billing_phone = (
         (
@@ -2417,9 +2437,11 @@ def sales(request):
         'sys_settings': sys_settings,
         'branch': branch,
         'branch_name': branch_name,
+        'default_billing_address': default_billing_address,
         'billing_phone': billing_phone,
         'billing_gstin': billing_gstin,
         'edit_sale': edit_sale,
+        'default_sale_date': timezone.localdate(),
         'auto_invoice_no': auto_invoice_no,
         'models': models_qs,
         'colors': colors_qs,
@@ -2585,6 +2607,23 @@ def customer(request):
     if branch is not None:
         sales_qs = sales_qs.filter(stock__branch=branch)
 
+    # Build Customer's filter options from the current branch's models and
+    # the same branch-scoped sales queryset. The latter preserves options
+    # for historical sales whose model has since been archived or removed
+    # from the active model list. Deduplicate repeated names across companies.
+    model_names = set()
+    if branch is not None:
+        model_names.update(
+            VehicleModel.objects.filter(branch=branch, is_active=True)
+            .values_list('model_name', flat=True)
+            .distinct()
+        )
+    model_names.update(
+        name for name in sales_qs.values_list('stock__model__model_name', flat=True).distinct()
+        if name
+    )
+    vehicle_models = [{'model_name': name} for name in sorted(model_names, key=str.casefold)]
+
     # Invoice Settings
     invoice_setting = InvoiceSetting.objects.first()
 
@@ -2593,7 +2632,7 @@ def customer(request):
         'yakuza/customer.html',
         {
             'customers': sales_qs,
-            'vehicle_models': VehicleModel.objects.filter(is_active=True),
+            'vehicle_models': vehicle_models,
             'invoice_setting': invoice_setting,
             'branch': branch,
         }
@@ -2610,7 +2649,7 @@ def get_customer_invoice_ajax(request, sale_id):
         stock = sale.stock
         branch_obj = stock.branch if stock else None
 
-        return JsonResponse({
+        response = JsonResponse({
             "status": "success",
             "sale_id": sale.id,
             "invoice_no": sale.invoice_no,
@@ -2621,6 +2660,7 @@ def get_customer_invoice_ajax(request, sale_id):
             "payment_method": sale.get_payment_method_display(),
             "model_name": stock.model.model_name if stock and stock.model else "-",
             "voltage": sale.voltage or "",
+            "billing_address": sale.billing_address or "",
             "color_name": stock.color.color_name if stock and stock.color else "N/A",
             "extra_accessories": sale.extra_accessories,
             "chassis_number": stock.chassis_number if stock else "N/A",
@@ -2638,6 +2678,12 @@ def get_customer_invoice_ajax(request, sale_id):
             "branch_gst": branch_obj.gst_number if branch_obj else "",
             "invoice_pdf_url": sale.invoice_pdf.url if sale.invoice_pdf else ""
         })
+        # Customer View Invoice must always fetch the Sale's latest saved
+        # values after an edit; prevent browsers/proxies from reusing an old
+        # invoice payload for this endpoint.
+        response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response["Pragma"] = "no-cache"
+        return response
     except Sales.DoesNotExist:
         return JsonResponse({'status': 'error', 'message': 'Unable to identify sale.'}, status=404)
     except Exception as e:
