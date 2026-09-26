@@ -475,6 +475,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         table { width: 100%; max-width: 100%; border-collapse: collapse; table-layout: fixed; box-sizing: border-box; }
                         th, td { border: 1.5px solid #000000 !important; border-collapse: collapse !important; padding: 8px 5px; font-size: 10px !important; line-height: 1.3; vertical-align: middle; word-wrap: break-word; overflow-wrap: break-word; text-align: center; }
                         th { font-weight: 600; background: #f2f2f2; }
+                        #printable-invoice-container .bill-logo { width: auto !important; height: 70px !important; max-height: none !important; object-fit: contain !important; transform: scale(1.25, 1.25) scaleX(1.04); transform-origin: top right; position: relative; top: -14px; }
                         #printable-invoice-container .bill-table tbody tr:first-child > td:nth-child(2) { text-align: left !important; }
                         .bill-header, .bill-to-box, .inv-payment-summary-flex{ margin: 8px 0 !important; page-break-inside: avoid; break-inside: avoid; }
                         .bill-table { margin: 8px 0 1px 0 !important; page-break-inside: avoid; break-inside: avoid; }
