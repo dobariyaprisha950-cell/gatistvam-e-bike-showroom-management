@@ -19,6 +19,8 @@ document.addEventListener('DOMContentLoaded', function () {
   var passwordInput        = document.getElementById('password');
   var confirmPasswordInput = document.getElementById('confirmPassword');
   var branchAddressInput   = document.getElementById('branchAddress');
+  var recoveryQuestionInput = document.getElementById('recoveryQuestion');
+  var recoveryAnswerInput = document.getElementById('recoveryAnswer');
 
   // Password Toggle Elements
   var togglePasswordBtn        = document.getElementById('togglePassword');
@@ -101,6 +103,8 @@ document.addEventListener('DOMContentLoaded', function () {
               !validateRequired(usernameInput) ||
               !validatePassword() ||
               !validateConfirmPassword() ||
+              !validateRequired(recoveryQuestionInput) ||
+              !validateRequired(recoveryAnswerInput) ||
               !validateRequired(branchAddressInput)
           ) {
               return;
@@ -181,6 +185,8 @@ document.addEventListener('DOMContentLoaded', function () {
               username: usernameInput.value.trim(),
               password: passwordInput.value,
               confirm_password: confirmPasswordInput.value,
+              recovery_question: recoveryQuestionInput.value,
+              recovery_answer: recoveryAnswerInput.value,
               branch_address: branchAddressInput.value.trim()
           })
       })

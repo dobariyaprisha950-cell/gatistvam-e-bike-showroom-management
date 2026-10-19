@@ -2,6 +2,7 @@ import json
 import uuid
 import csv
 import logging
+import secrets
 import re
 import os
 import ast
@@ -34,6 +35,7 @@ from django.http import JsonResponse, HttpResponse, FileResponse
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import authenticate, login as auth_login, logout, update_session_auth_hash
+from django.contrib.auth.hashers import check_password, make_password
 from django.contrib.auth.models import User
 from django.contrib import messages
 from django.conf import settings as django_settings
@@ -654,12 +656,21 @@ def register(request):
             password = data.get('password', '').strip()
             confirm_password = data.get('confirm_password', '').strip()
             branch_address = data.get('branch_address', '').strip()
+            recovery_question = data.get('recovery_question', '').strip()
+            recovery_answer = ' '.join(data.get('recovery_answer', '').split()).casefold()
 
             if not username or not password:
                 return JsonResponse({'success': False, 'message': 'Username & Password are required.'}, status=400)
 
             if password != confirm_password:
                 return JsonResponse({'success': False, 'message': 'Passwords do not match.'}, status=400)
+
+            if recovery_question not in RECOVERY_QUESTIONS or len(recovery_answer) < 2:
+                return JsonResponse({'success': False, 'message': 'Choose a recovery question and enter an answer of at least 2 characters.'}, status=400)
+            if not re.fullmatch(r'[6-9][0-9]{9}', mobile_number):
+                return JsonResponse({'success': False, 'message': 'Enter a valid 10-digit mobile number.'}, status=400)
+            if UserProfile.objects.filter(mobile_number=mobile_number).exists():
+                return JsonResponse({'success': False, 'message': 'This mobile number is already registered. Contact your system administrator.'}, status=400)
 
             if User.objects.filter(username=username).exists():
                 return JsonResponse({'success': False, 'message': 'Username is already taken.'}, status=400)
@@ -699,6 +710,8 @@ def register(request):
                 branch=selected_branch,
                 role=UserProfile.RoleChoices.BRANCH_ADMIN,
                 mobile_number=mobile_number,
+                recovery_question=recovery_question,
+                recovery_answer_hash=make_password(recovery_answer),
                 is_active=True
             )
 
@@ -712,7 +725,148 @@ def register(request):
             return JsonResponse({'success': False, 'message': str(e)}, status=500)
 
     branches = Branch.objects.filter(is_active=True)
-    return render(request, 'yakuza/register.html', {'branches': branches})
+    return render(request, 'yakuza/register.html', {'branches': branches, 'recovery_questions': RECOVERY_QUESTIONS})
+
+
+RECOVERY_QUESTIONS = (
+    'What was the name of your first school?',
+    'What city were you born in?',
+    'What was the name of your first pet?',
+)
+
+
+def _clear_recovery_session(request):
+    for key in ('recovery_user_id', 'recovery_verified_at', 'recovery_token'):
+        request.session.pop(key, None)
+
+
+@require_http_methods(['GET', 'POST'])
+def forgot_password(request):
+    if request.method == 'GET':
+        _clear_recovery_session(request)
+        return render(request, 'yakuza/forgot_password.html', {'stage': 'identify'})
+
+    identifier = request.POST.get('mobile_number', '').strip()
+    _clear_recovery_session(request)
+    request.session.pop('recovery_started_at', None)
+    request.session.pop('recovery_question', None)
+    request.session.pop('recovery_identifier', None)
+    if not re.fullmatch(r'[0-9]{10,15}', identifier):
+        return render(request, 'yakuza/forgot_password.html', {
+            'stage': 'identify', 'error': 'Mobile number does not match any registered account.',
+        })
+
+    matches = UserProfile.objects.select_related('user').filter(mobile_number=identifier)
+    profile = matches.first() if matches.count() == 1 else None
+    if not profile:
+        return render(request, 'yakuza/forgot_password.html', {
+            'stage': 'identify', 'error': 'Mobile number does not match any registered account.',
+        })
+
+    request.session['recovery_user_id'] = profile.user_id
+    request.session['recovery_question'] = profile.recovery_question if profile.recovery_answer_hash else ''
+    request.session['recovery_started_at'] = timezone.now().timestamp()
+    request.session['recovery_identifier'] = identifier
+    return render(request, 'yakuza/forgot_password.html', {
+        'stage': 'verify',
+        'questions': RECOVERY_QUESTIONS,
+    })
+
+
+@require_http_methods(['GET', 'POST'])
+def verify_recovery_answer(request):
+    started = request.session.get('recovery_started_at')
+    if not started or timezone.now().timestamp() - started > 600:
+        _clear_recovery_session(request)
+        request.session.pop('recovery_started_at', None)
+        return render(request, 'yakuza/forgot_password.html', {
+            'stage': 'identify', 'error': 'This recovery session expired. Please start again.',
+        })
+
+    user_id = request.session.get('recovery_user_id')
+    profile = UserProfile.objects.select_related('user').filter(user_id=user_id).first() if user_id else None
+    if not profile or not profile.recovery_answer_hash:
+        # Deliberately perform a hash check for unknown / ineligible accounts too.
+        check_password('invalid-answer', make_password('unavailable-recovery-answer'))
+        return render(request, 'yakuza/forgot_password.html', {
+            'stage': 'verify', 'questions': RECOVERY_QUESTIONS,
+            'error': 'The answer could not be verified. If you cannot complete recovery, contact your system administrator.',
+        })
+
+    if profile.recovery_locked_until and profile.recovery_locked_until > timezone.now():
+        return render(request, 'yakuza/forgot_password.html', {
+            'stage': 'verify', 'questions': RECOVERY_QUESTIONS,
+            'error': 'The answer could not be verified. If you cannot complete recovery, contact your system administrator.',
+        })
+
+    if request.method == 'POST':
+        answer = ' '.join(request.POST.get('recovery_answer', '').split()).casefold()
+        chosen_question = request.POST.get('recovery_question', '')
+        if not answer or chosen_question != profile.recovery_question or not check_password(answer, profile.recovery_answer_hash):
+            profile.recovery_failed_attempts += 1
+            if profile.recovery_failed_attempts >= 5:
+                profile.recovery_locked_until = timezone.now() + timedelta(minutes=15)
+                profile.recovery_failed_attempts = 0
+            profile.save(update_fields=['recovery_failed_attempts', 'recovery_locked_until'])
+            return render(request, 'yakuza/forgot_password.html', {
+                'stage': 'verify', 'questions': RECOVERY_QUESTIONS,
+                'error': 'The answer could not be verified. If you cannot complete recovery, contact your system administrator.',
+            })
+        profile.recovery_failed_attempts = 0
+        profile.recovery_locked_until = None
+        profile.save(update_fields=['recovery_failed_attempts', 'recovery_locked_until'])
+        request.session.cycle_key()
+        request.session['recovery_verified_at'] = timezone.now().timestamp()
+        request.session['recovery_token'] = secrets.token_urlsafe(32)
+        return redirect('yakuza:reset_password')
+
+    return render(request, 'yakuza/forgot_password.html', {
+        'stage': 'verify', 'questions': RECOVERY_QUESTIONS,
+    })
+
+
+@require_http_methods(['GET', 'POST'])
+def reset_password(request):
+    verified_at = request.session.get('recovery_verified_at')
+    if (not request.session.get('recovery_token') or not verified_at
+            or timezone.now().timestamp() - verified_at > 600
+            or not request.session.get('recovery_user_id')):
+        _clear_recovery_session(request)
+        request.session.pop('recovery_started_at', None)
+        return render(request, 'yakuza/forgot_password.html', {
+            'stage': 'identify', 'error': 'This recovery session expired. Please start again.',
+        })
+
+    user = User.objects.filter(pk=request.session['recovery_user_id'], is_active=True).first()
+    profile = UserProfile.objects.filter(user=user).first() if user else None
+    if not user or not profile:
+        _clear_recovery_session(request)
+        return redirect('yakuza:forgot_password')
+
+    if request.method == 'POST':
+        password = request.POST.get('new_password', '')
+        confirm = request.POST.get('confirm_password', '')
+        if not password or not confirm:
+            error = 'Enter and confirm your new password.'
+        elif password != confirm:
+            error = 'The passwords do not match.'
+        elif len(password) < 8:
+            error = 'Password must contain at least 8 characters.'
+        else:
+            user.set_password(password)
+            user.save(update_fields=['password'])
+            _clear_recovery_session(request)
+            request.session.pop('recovery_started_at', None)
+            request.session.pop('recovery_identifier', None)
+            messages.success(
+                request,
+                'Your password has been reset. Please log in with your new password.',
+                extra_tags='password-reset-success',
+            )
+            return redirect('yakuza:login')
+        return render(request, 'yakuza/forgot_password.html', {'stage': 'reset', 'error': error})
+
+    return render(request, 'yakuza/forgot_password.html', {'stage': 'reset'})
 
 
 @login_required

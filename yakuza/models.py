@@ -40,6 +40,10 @@ class UserProfile(models.Model):
         default=RoleChoices.BRANCH_ADMIN
     )
     mobile_number = models.CharField(max_length=15, blank=True, null=True)
+    recovery_question = models.CharField(max_length=200, blank=True)
+    recovery_answer_hash = models.CharField(max_length=128, blank=True)
+    recovery_failed_attempts = models.PositiveSmallIntegerField(default=0)
+    recovery_locked_until = models.DateTimeField(blank=True, null=True)
     profile_photo = models.ImageField(upload_to='profiles/', blank=True, null=True)
     is_active = models.BooleanField(default=True)
 

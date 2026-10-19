@@ -32,6 +32,9 @@ urlpatterns = [
     
     # Frontend Pages
     path('accounts/login/', views.login, name='login'),
+    path('accounts/forgot-password/', views.forgot_password, name='forgot_password'),
+    path('accounts/forgot-password/verify/', views.verify_recovery_answer, name='verify_recovery_answer'),
+    path('accounts/forgot-password/reset/', views.reset_password, name='reset_password'),
     path('logout/', views.logout_view, name='logout'),
     path('register/', views.register, name='register'),
     

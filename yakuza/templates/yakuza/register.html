@@ -70,6 +70,18 @@
             <input type="text" id="username" name="username" class="text-input" placeholder="Username" required>
           </div>
 
+          <div class="input-group">
+            <span class="input-icon"><img src="{% static 'icon/shield.svg' %}" class="input-svg" alt=""></span>
+            <select id="recoveryQuestion" class="text-input" required>
+              <option value="" selected disabled>Choose a recovery question</option>
+              {% for question in recovery_questions %}<option value="{{ question }}">{{ question }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="input-group">
+            <span class="input-icon"><img src="{% static 'icon/lock.svg' %}" class="input-svg" alt=""></span>
+            <input type="text" id="recoveryAnswer" class="text-input" placeholder="Recovery Answer" autocomplete="off" required>
+          </div>
+
           <!-- Password -->
           <div class="input-group">
             <span class="input-icon">

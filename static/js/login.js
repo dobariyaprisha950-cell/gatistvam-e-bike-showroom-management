@@ -9,7 +9,18 @@ document.addEventListener('DOMContentLoaded', function () {
   var eyeIcon           = document.getElementById('eyeIcon');
   var loginForm         = document.getElementById('loginForm');
   var usernameInput    = document.getElementById('username');
-  var securityBtn       = document.getElementById('securityLoginBtn');
+  var djangoMessages = Array.from(document.querySelectorAll('.login-message-source'));
+  if (djangoMessages.length) showDjangoMessage(0);
+
+  function showDjangoMessage(index) {
+    if (index >= djangoMessages.length) return;
+    var source = djangoMessages[index];
+    var tags = (source.dataset.messageTags || '').split(/\s+/);
+    var type = tags.includes('success') ? 'success' : 'warning';
+    showToast(null, source.textContent.trim(), type, 3000, function () {
+      showDjangoMessage(index + 1);
+    });
+  }
 
   var EYE_OPEN =
     '<path d="M12 5C5.63636 5 1 12 1 12C1 12 5.63636 19 12 19C18.3636 19 23 12 23 12C23 12 18.3636 5 12 5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>' +
@@ -107,7 +118,7 @@ if (loginForm) {
         showToast(loginBtn, "Login Successful!", "success");
         setTimeout(function() {
           window.location.href = data.redirect_url || '/dashboard/';
-        }, 600);
+        }, 10000);
       } else {
         loginBtn.disabled = false;
         loginBtn.textContent = originalText;
@@ -121,11 +132,6 @@ if (loginForm) {
   }
 
   /* ---------- Security option click ---------- */
-  if (securityBtn) {
-    securityBtn.addEventListener('click', function () {
-      console.log('Login with Security Option clicked');
-    });
-  }
 
   /* ---------- CSRF Helper for Django ---------- */
   function getCookie(name) {
@@ -144,15 +150,17 @@ if (loginForm) {
   }
 
   /* ---------- Inline Toast Display ---------- */
-  function showToast(input, message, type = "warning") {
+  function showToast(input, message, type = "warning", duration = 3000, onDismiss) {
     const toast = document.getElementById("inlineToast");
     if (!toast) return;
 
-    if (type === "success") {
+    if (type === "success" || !input) {
       toast.style.left = "50%";
       toast.style.top = "50%";
       toast.style.transform = "translate(-50%, -50%)";
-      toast.innerHTML = '<span style="color:#22C55E;">✔</span> ' + message;
+      toast.innerHTML = type === "success"
+        ? '<span style="color:#22C55E;">✔</span> ' + message
+        : '<span style="color:#F4B400;">⚠</span> ' + message;
     } else {
       const group = input.closest(".input-group") || input;
       const rect = group.getBoundingClientRect();
@@ -168,7 +176,8 @@ if (loginForm) {
     clearTimeout(toast.timer);
     toast.timer = setTimeout(() => {
       toast.classList.remove("show");
-    }, 3000);
+      if (onDismiss) onDismiss();
+    }, duration);
   }
 
 });

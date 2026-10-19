@@ -517,6 +517,7 @@ body{
   gap: clamp(6px, 0.8vw, 9px);
   cursor: pointer;
   margin-bottom:8px;
+  text-decoration:none;
   outline: none;
   transition: background .15s ease, color .15s ease;
 }

@@ -41,6 +41,8 @@
 
         <h2 class="welcome-title">Welcome Back!</h2>
 
+        {% for message in messages %}<div class="login-message-source" data-message-tags="{{ message.tags }}" hidden>{{ message }}</div>{% endfor %}
+
         <form id="loginForm" class="login-form" action="{% url 'yakuza:login' %}" method="POST" autocomplete="off" novalidate>
             {% csrf_token %}
 
@@ -82,13 +84,13 @@
             
             <div id="inlineToast" class="inline-toast"></div>
 
-            <button type="button" class="btn-security" id="securityLoginBtn">
-                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="security-icon">
+            <a href="{% url 'yakuza:forgot_password' %}" class="btn-security" id="forgotPasswordBtn">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="security-icon" aria-hidden="true">
                     <path d="M12 2L4 5V11C4 16.55 7.84 21.74 12 23C16.16 21.74 20 16.55 20 11V5L12 2Z" fill="currentColor"/>
                     <path d="M10.5 13.5L8.5 11.5L7 13L10.5 16.5L17 10L15.5 8.5L10.5 13.5Z" fill="white"/>
                 </svg>
-                <span>Login with Security Option</span>
-            </button>
+                <span>Forgot Password?</span>
+            </a>
             
             <div class="register-section">
                 <a href="{% url 'yakuza:register' %}" class="btn-register">
