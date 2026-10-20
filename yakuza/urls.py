@@ -79,6 +79,7 @@ urlpatterns = [
     path('settings/update-profile/', views.update_profile_ajax, name='update_profile'),
     path('settings/update-branch/', views.update_branch_ajax, name='update_branch'),
     path('toggle-user-status/<int:user_id>/', views.toggle_user_status, name='toggle_user_status'),
+    path('settings/users/<int:user_id>/reset-password/', views.reset_user_password, name='reset_user_password'),
     path('settings/save-user/', views.save_user_ajax, name='save_user_ajax'),
     
     path('settings/update-invoice/', views.update_invoice_ajax, name='update_invoice'),

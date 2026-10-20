@@ -140,7 +140,7 @@ Settings
                                 <div class="erp-form-group">
                                     <label for="new_password" class="erp-label">New Password</label>
                                     <div class="password-input-wrapper" style="position: relative;">
-                                        <input type="password" id="new_password" name="new_password" class="erp-input" placeholder="••••••••" style="padding-right: 40px;">
+                                        <input type="password" id="new_password" name="new_password" class="erp-input" placeholder="••••••••" minlength="6" style="padding-right: 40px;">
                                         <button type="button" class="toggle-password" data-target="new_password" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #6b7280; padding: 5px;">
                                             <i class="fas fa-eye"></i>
                                         </button>
@@ -150,7 +150,7 @@ Settings
                                 <div class="erp-form-group">
                                     <label for="confirm_password" class="erp-label">Confirm New Password</label>
                                     <div class="password-input-wrapper" style="position: relative;">
-                                        <input type="password" id="confirm_password" name="confirm_password" class="erp-input" placeholder="••••••••" style="padding-right: 40px;">
+                                        <input type="password" id="confirm_password" name="confirm_password" class="erp-input" placeholder="••••••••" minlength="6" style="padding-right: 40px;">
                                         <button type="button" class="toggle-password" data-target="confirm_password" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #6b7280; padding: 5px;">
                                             <i class="fas fa-eye"></i>
                                         </button>
@@ -263,26 +263,54 @@ Settings
                         {% endif %}
                     </div>
                     <div class="erp-card-body p-0">
+                        <div class="erp-card-body" style="padding-bottom: 0;">
+                            <label class="erp-label" for="user-search">Search accounts</label>
+                            <input type="search" id="user-search" class="erp-input" placeholder="Search by name, username, role, or branch">
+                        </div>
                         <div class="erp-table-responsive">
-                            <table class="erp-table">
+                            <table id="user-management-table" class="erp-table{% if not show_user_actions %} user-table-no-actions{% endif %}">
+                                <colgroup>
+                                    <col>
+                                    <col>
+                                    <col>
+                                    <col>
+                                    {% if show_user_actions %}
+                                    <col class="user-actions-column">
+                                    {% endif %}
+                                    <col class="user-status-column">
+                                </colgroup>
                                 <thead>
                                     <tr>
                                         <th>Name</th>
                                         <th>Username</th>
                                         <th>Role</th>
                                         <th>Branch</th>
+                                        {% if show_user_actions %}
                                         <th>Actions</th>
+                                        {% endif %}
+                                        <th>Status</th>
                                     </tr>
                                 </thead>
                                 <tbody id="user-table-body">
                                     {% for u in users_list %}
-                                    <tr>
+                                    <tr{% if u.userprofile.role == 'BRANCH_ADMIN' %} class="user-row-branch-admin"{% endif %}>
                                         <td>{{ u.get_full_name|default:u.username }}</td>
                                         <td>{{ u.username }}</td>
                                         <td>{{ u.userprofile.get_role_display }}</td>
                                         <td>{{ u.userprofile.branch.branch_name }}</td>
-                                        <td>
-                                            <form action="{% url 'yakuza:toggle_user_status' u.id %}" method="POST" style="margin: 0; display: flex; align-items: center;">
+                                        {% if show_user_actions %}
+                                        <td class="user-actions-cell">
+                                            <div class="user-actions">
+                                                {% if can_manage_user_passwords %}
+                                                    <button type="button" class="erp-btn erp-btn-primary btn-reset-user-password"
+                                                        data-reset-url="{% url 'yakuza:reset_user_password' u.id %}"
+                                                        data-username="{{ u.username }}">Reset Password</button>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                        {% endif %}
+                                        <td class="user-status-cell">
+                                            <form class="user-status-form" action="{% url 'yakuza:toggle_user_status' u.id %}" method="POST">
                                                 {% csrf_token %}
                                                 <label class="erp-switch erp-switch-sm" title="Toggle User Active Status">
                                                     <input type="checkbox" onchange="this.form.submit()" {% if u.is_active %}checked{% endif %}>
@@ -293,7 +321,7 @@ Settings
                                     </tr>
                                     {% empty %}
                                     <tr class="erp-empty-row">
-                                        <td colspan="5" class="text-center py-4 text-muted">
+                                        <td colspan="{% if show_user_actions %}6{% else %}5{% endif %}" class="text-center py-4 text-muted">
                                             No users loaded. Click "+ Add User" to add a new account.
                                         </td>
                                     </tr>
@@ -522,26 +550,40 @@ Settings
                     </div>
                     <div class="erp-form-group">
                     <label for="u_password" class="erp-label required">Password</label>
-                    <input
-                        type="password"
-                        id="u_password"
-                        name="password"
-                        class="erp-input"
-                        required
-                        autocomplete="new-password"
-                    >
+                    <div class="password-input-wrapper" style="position: relative;">
+                        <input
+                            type="password"
+                            id="u_password"
+                            name="password"
+                            class="erp-input"
+                            minlength="6"
+                            style="padding-right: 40px;"
+                            required
+                            autocomplete="new-password"
+                        >
+                        <button type="button" class="toggle-password" data-target="u_password" aria-label="Show password" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #6b7280; padding: 5px;">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
                 </div>
 
                 <div class="erp-form-group">
                     <label for="u_confirm_password" class="erp-label required">Confirm Password</label>
-                    <input
-                        type="password"
-                        id="u_confirm_password"
-                        name="confirm_password"
-                        class="erp-input"
-                        required
-                        autocomplete="new-password"
-                    >
+                    <div class="password-input-wrapper" style="position: relative;">
+                        <input
+                            type="password"
+                            id="u_confirm_password"
+                            name="confirm_password"
+                            class="erp-input"
+                            minlength="6"
+                            style="padding-right: 40px;"
+                            required
+                            autocomplete="new-password"
+                        >
+                        <button type="button" class="toggle-password" data-target="u_confirm_password" aria-label="Show confirm password" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #6b7280; padding: 5px;">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
                 </div>
                     <div class="erp-form-group">
                         <label for="u_role" class="erp-label required">Role</label>
@@ -565,6 +607,42 @@ Settings
         </form>
     </div>
 </div>
+
+{% if can_manage_user_passwords %}
+<div class="erp-modal-backdrop" id="modal-reset-user-password" hidden>
+    <div class="erp-modal erp-modal-sm" role="dialog" aria-modal="true" aria-labelledby="reset-user-password-title">
+        <div class="erp-modal-header">
+            <h4 id="reset-user-password-title">Reset Password</h4>
+            <button type="button" class="erp-modal-close" data-dismiss="modal" aria-label="Close">&times;</button>
+        </div>
+        <form id="form-reset-user-password" method="post">
+            {% csrf_token %}
+            <div class="erp-modal-body">
+                <p>Set a new password for <strong id="reset-user-password-username"></strong>.</p>
+                <div id="reset-user-password-message" role="alert" aria-live="polite"></div>
+                <div class="erp-form-group">
+                    <label class="erp-label required" for="reset-user-password-new">New password</label>
+                    <div class="password-input-wrapper" style="position: relative;">
+                        <input class="erp-input" id="reset-user-password-new" name="new_password1" type="password" minlength="6" autocomplete="new-password" style="padding-right: 40px;" required>
+                        <button type="button" class="toggle-password" data-target="reset-user-password-new" aria-label="Show new password" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #6b7280; padding: 5px;"><i class="fas fa-eye"></i></button>
+                    </div>
+                </div>
+                <div class="erp-form-group">
+                    <label class="erp-label required" for="reset-user-password-confirm">Confirm new password</label>
+                    <div class="password-input-wrapper" style="position: relative;">
+                        <input class="erp-input" id="reset-user-password-confirm" name="new_password2" type="password" minlength="6" autocomplete="new-password" style="padding-right: 40px;" required>
+                        <button type="button" class="toggle-password" data-target="reset-user-password-confirm" aria-label="Show confirm password" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #6b7280; padding: 5px;"><i class="fas fa-eye"></i></button>
+                    </div>
+                </div>
+            </div>
+            <div class="erp-modal-footer">
+                <button type="button" class="erp-btn erp-btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="submit" class="erp-btn erp-btn-primary">Set New Password</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
 
 <!-- Restore Backup Confirmation Modal -->
 <div class="erp-modal-backdrop" id="modal-confirm-restore" hidden>

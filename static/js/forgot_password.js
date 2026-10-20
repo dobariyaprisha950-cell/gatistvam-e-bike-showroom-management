@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var password = form.elements.new_password.value;
     var confirm = form.elements.confirm_password.value;
     var message = '';
-    if (password.length < 8) message = 'Password must contain at least 8 characters.';
+    if (password.length < 6) message = 'Password must contain at least 6 characters.';
     else if (password !== confirm) message = 'The passwords do not match.';
     if (message) {
       event.preventDefault();

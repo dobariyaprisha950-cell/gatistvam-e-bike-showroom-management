@@ -87,7 +87,7 @@
             <span class="input-icon">
               <img src="{% static 'icon/lock.svg' %}" class="input-svg" alt="">
             </span>
-            <input type="password" id="password" name="password" class="text-input" placeholder="Password" required>
+            <input type="password" id="password" name="password" class="text-input" placeholder="Password" minlength="6" required>
             <button type="button" class="toggle-password" id="togglePassword">
               <img id="eyeIconPassword" src="{% static 'icon/eye.svg' %}" class="input-svg" alt="Show Password">
             </button>
@@ -98,7 +98,7 @@
             <span class="input-icon">
               <img src="{% static 'icon/lock.svg' %}" class="input-svg" alt="">
             </span>
-            <input type="password" id="confirmPassword" name="confirmPassword" class="text-input" placeholder="Confirm Password" required>
+            <input type="password" id="confirmPassword" name="confirmPassword" class="text-input" placeholder="Confirm Password" minlength="6" required>
             <button type="button" class="toggle-password" id="toggleConfirmPassword">
               <img id="eyeIconConfirm" src="{% static 'icon/eye.svg' %}" class="input-svg" alt="Show Password">
             </button>

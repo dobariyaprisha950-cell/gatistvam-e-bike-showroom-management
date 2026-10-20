@@ -499,6 +499,7 @@ input:checked + .erp-slider:before {
 /* Enterprise Tables */
 .erp-table-responsive {
     width: 100%;
+    min-width: 0;
     overflow-x: auto;
 }
 
@@ -527,6 +528,80 @@ input:checked + .erp-slider:before {
 
 .erp-table-striped tbody tr:nth-of-type(odd) {
     background-color: #f8fafc;
+}
+
+/* User Management table */
+#user-management-table {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    table-layout: fixed;
+    box-sizing: border-box;
+}
+
+#user-management-table col:nth-child(1) { width: 18%; }
+#user-management-table col:nth-child(2) { width: 17%; }
+#user-management-table col:nth-child(3) { width: 14%; }
+#user-management-table col:nth-child(4) { width: 17%; }
+#user-management-table col.user-actions-column { width: 22%; }
+#user-management-table col.user-status-column { width: 12%; }
+#user-management-table.user-table-no-actions col:nth-child(1) { width: 22%; }
+#user-management-table.user-table-no-actions col:nth-child(2) { width: 22%; }
+#user-management-table.user-table-no-actions col:nth-child(3) { width: 18%; }
+#user-management-table.user-table-no-actions col:nth-child(4) { width: 22%; }
+#user-management-table.user-table-no-actions col.user-status-column { width: 16%; }
+
+#user-management-table th,
+#user-management-table td {
+    box-sizing: border-box;
+    min-width: 0;
+    padding: 0.32rem 0.3rem;
+    text-align: center !important;
+    vertical-align: middle;
+}
+
+#user-management-table td {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+#user-management-table .user-row-branch-admin td {
+    padding-right: 0.42rem;
+    padding-left: 0.42rem;
+}
+
+#user-management-table .user-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+}
+
+#user-management-table .btn-reset-user-password {
+    flex: 0 1 auto;
+    min-width: 0;
+    padding: 0.24rem 0.38rem;
+    border-radius: var(--erp-radius);
+    font-size: 0.72rem;
+    white-space: nowrap;
+}
+
+#user-management-table .user-status-form {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    margin: 0;
+}
+
+#user-management-table .user-status-cell {
+    text-align: center !important;
+}
+
+#user-management-table .user-reset-unavailable {
+    color: var(--erp-text-muted);
+    font-size: 0.72rem;
 }
 
 /* Status Badges */

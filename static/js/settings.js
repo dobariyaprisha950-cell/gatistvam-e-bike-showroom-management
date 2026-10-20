@@ -96,8 +96,6 @@ document.addEventListener('DOMContentLoaded', function () {
     // 1. CSRF TOKEN & HELPERS
     // ==========================================
     function getCsrfToken() {
-        const tokenInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
-        if (tokenInput && tokenInput.value) return tokenInput.value;
         const name = 'csrftoken';
         let cookieValue = null;
         if (document.cookie && document.cookie !== '') {
@@ -110,7 +108,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
         }
-        return cookieValue;
+        if (cookieValue) return cookieValue;
+
+        // A masked token in the rendered form is the safe fallback when the
+        // CSRF cookie is HttpOnly or CSRF_USE_SESSIONS is enabled.
+        const tokenInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
+        return tokenInput?.value || null;
     }
 
     function showModal(modalEl) { if (modalEl) modalEl.removeAttribute('hidden'); }
@@ -370,8 +373,8 @@ document.addEventListener('DOMContentLoaded', function () {
     function submitProfileForm() {
         return new Promise((resolve) => {
             const currPass = document.getElementById('curr_password')?.value.trim() || '';
-            const newPass = document.getElementById('new_password')?.value.trim() || '';
-            const confirmPass = document.getElementById('confirm_password')?.value.trim() || '';
+            const newPass = document.getElementById('new_password')?.value || '';
+            const confirmPass = document.getElementById('confirm_password')?.value || '';
 
             if (newPass !== '' || confirmPass !== '' || currPass !== '') {
                 if (currPass === '') {
@@ -535,14 +538,22 @@ document.addEventListener('DOMContentLoaded', function () {
                 alert('Password and Confirm Password must match.');
                 return;
             }
+            if (password.length < 6) {
+                alert('Password must be at least 6 characters.');
+                return;
+            }
 
             const formData = new FormData(formUserModal);
+            const csrfToken = getCsrfToken();
+            if (csrfToken) formData.set('csrfmiddlewaretoken', csrfToken);
 
             try {
                 const response = await fetch('/settings/save-user/', {
                     method: 'POST',
                     body: formData,
+                    credentials: 'same-origin',
                     headers: {
+                        ...(csrfToken ? {'X-CSRFToken': csrfToken} : {}),
                         'X-Requested-With': 'XMLHttpRequest'
                     }
                 });
@@ -567,6 +578,71 @@ document.addEventListener('DOMContentLoaded', function () {
             } catch (error) {
                 console.error('Super Admin creation error:', error);
                 alert('Something went wrong while creating Super Admin.');
+            }
+        });
+    }
+
+    const userSearch = document.getElementById('user-search');
+    if (userSearch) {
+        userSearch.addEventListener('input', function () {
+            const query = this.value.trim().toLowerCase();
+            document.querySelectorAll('#user-table-body tr:not(.erp-empty-row)').forEach(row => {
+                row.hidden = !row.textContent.toLowerCase().includes(query);
+            });
+        });
+    }
+
+    const resetPasswordModal = document.getElementById('modal-reset-user-password');
+    const resetPasswordForm = document.getElementById('form-reset-user-password');
+    const resetPasswordMessage = document.getElementById('reset-user-password-message');
+    if (resetPasswordModal && resetPasswordForm) {
+        document.querySelectorAll('.btn-reset-user-password').forEach(button => {
+            button.addEventListener('click', function () {
+                resetPasswordForm.reset();
+                resetPasswordForm.action = this.dataset.resetUrl;
+                document.getElementById('reset-user-password-username').textContent = this.dataset.username;
+                resetPasswordMessage.textContent = '';
+                showModal(resetPasswordModal);
+            });
+        });
+
+        resetPasswordForm.addEventListener('submit', async function (event) {
+            event.preventDefault();
+            resetPasswordMessage.textContent = '';
+            const newPassword = resetPasswordForm.elements.new_password1.value;
+            const confirmPassword = resetPasswordForm.elements.new_password2.value;
+            if (newPassword.length < 6) {
+                resetPasswordMessage.textContent = 'Password must be at least 6 characters.';
+                resetPasswordMessage.className = 'text-danger';
+                return;
+            }
+            if (newPassword !== confirmPassword) {
+                resetPasswordMessage.textContent = 'The passwords do not match.';
+                resetPasswordMessage.className = 'text-danger';
+                return;
+            }
+            const submitButton = resetPasswordForm.querySelector('[type="submit"]');
+            submitButton.disabled = true;
+            try {
+                const response = await fetch(resetPasswordForm.action, {
+                    method: 'POST',
+                    body: new FormData(resetPasswordForm),
+                    headers: {'X-Requested-With': 'XMLHttpRequest'}
+                });
+                const data = await response.json();
+                if (!response.ok || data.status !== 'success') {
+                    resetPasswordMessage.textContent = data.message || 'Unable to reset this password.';
+                    resetPasswordMessage.className = 'text-danger';
+                    return;
+                }
+                hideModal(resetPasswordModal);
+                resetPasswordForm.reset();
+                showToast(data.message || 'Password reset successfully.', 'success');
+            } catch (error) {
+                resetPasswordMessage.textContent = 'Unable to reset this password. Please try again.';
+                resetPasswordMessage.className = 'text-danger';
+            } finally {
+                submitButton.disabled = false;
             }
         });
     }

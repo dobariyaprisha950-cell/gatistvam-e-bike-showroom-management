@@ -138,8 +138,8 @@ document.addEventListener('DOMContentLoaded', function () {
   function validatePassword() {
       if (!validateRequired(passwordInput)) return false;
 
-      if (passwordInput.value.length < 8) {
-          showToast(passwordInput, "Password must be at least 8 characters");
+      if (passwordInput.value.length < 6) {
+          showToast(passwordInput, "Password must be at least 6 characters");
           return false;
       }
       return true;

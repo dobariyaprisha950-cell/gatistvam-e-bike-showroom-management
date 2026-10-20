@@ -23,7 +23,7 @@ from reportlab.lib.pagesizes import A4, landscape
 from decimal import Decimal,InvalidOperation
 from datetime import time, datetime, timedelta
 from urllib.parse import quote
-from django.http import HttpResponseForbidden
+from django.http import HttpResponseBadRequest, HttpResponseForbidden
 from django.template.loader import render_to_string
 from xhtml2pdf import pisa
 from django.views.decorators.http import require_http_methods, require_POST, require_GET
@@ -35,6 +35,7 @@ from django.http import JsonResponse, HttpResponse, FileResponse
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import authenticate, login as auth_login, logout, update_session_auth_hash
+from django.contrib.auth.forms import SetPasswordForm
 from django.contrib.auth.hashers import check_password, make_password
 from django.contrib.auth.models import User
 from django.contrib import messages
@@ -653,8 +654,8 @@ def register(request):
             owner_name = data.get('owner_name', '').strip()
             mobile_number = data.get('mobile_number', '').strip()
             username = data.get('username', '').strip()
-            password = data.get('password', '').strip()
-            confirm_password = data.get('confirm_password', '').strip()
+            password = data.get('password', '')
+            confirm_password = data.get('confirm_password', '')
             branch_address = data.get('branch_address', '').strip()
             recovery_question = data.get('recovery_question', '').strip()
             recovery_answer = ' '.join(data.get('recovery_answer', '').split()).casefold()
@@ -664,6 +665,8 @@ def register(request):
 
             if password != confirm_password:
                 return JsonResponse({'success': False, 'message': 'Passwords do not match.'}, status=400)
+            if len(password) < 6:
+                return JsonResponse({'success': False, 'message': 'Password must be at least 6 characters.'}, status=400)
 
             if recovery_question not in RECOVERY_QUESTIONS or len(recovery_answer) < 2:
                 return JsonResponse({'success': False, 'message': 'Choose a recovery question and enter an answer of at least 2 characters.'}, status=400)
@@ -850,8 +853,8 @@ def reset_password(request):
             error = 'Enter and confirm your new password.'
         elif password != confirm:
             error = 'The passwords do not match.'
-        elif len(password) < 8:
-            error = 'Password must contain at least 8 characters.'
+        elif len(password) < 6:
+            error = 'Password must contain at least 6 characters.'
         else:
             user.set_password(password)
             user.save(update_fields=['password'])
@@ -3883,6 +3886,18 @@ def settings(request):
         # Fallback if no branch assigned
         users_list = User.objects.none()
 
+    # User Management authorization is based on the application's assigned
+    # role. Django's is_superuser flag is not a substitute for that role.
+    can_manage_user_passwords = bool(
+        request.user.is_active
+        and user_profile
+        and user_profile.role == UserProfile.RoleChoices.SUPER_ADMIN
+    )
+    show_user_actions = (
+        can_manage_user_passwords
+        and users_list.exists()
+    )
+
     # Other settings context
     invoice_settings = InvoiceSetting.objects.filter(branch=current_branch).first() if current_branch else InvoiceSetting.objects.first()
     settings_obj = Settings.objects.first()
@@ -3893,6 +3908,8 @@ def settings(request):
         'current_branch': current_branch,
         'user_profile': user_profile,
         'users_list': users_list,
+        'can_manage_user_passwords': can_manage_user_passwords,
+        'show_user_actions': show_user_actions,
         'invoice_settings': invoice_settings,
         'settings_obj': settings_obj,
         'audit_logs': audit_logs,
@@ -3900,6 +3917,43 @@ def settings(request):
         'branch_stock_data': branch_stock_data,
     }
     return render(request, 'yakuza/settings.html', context)
+
+
+@login_required
+@require_POST
+@csrf_protect
+@transaction.atomic
+def reset_user_password(request, user_id):
+    """Set an eligible account's password from the in-app User Management UI."""
+    actor_profile = getattr(request.user, 'userprofile', None)
+    if (
+        not request.user.is_authenticated
+        or not request.user.is_active
+        or not actor_profile
+        or actor_profile.role != UserProfile.RoleChoices.SUPER_ADMIN
+    ):
+        return JsonResponse({'status': 'error', 'message': 'Permission denied.'}, status=403)
+
+    target_user = get_object_or_404(User, pk=user_id)
+    form = SetPasswordForm(target_user, request.POST)
+    if not form.is_valid():
+        errors = [message for field_errors in form.errors.values() for message in field_errors]
+        return JsonResponse({
+            'status': 'error',
+            'message': ' '.join(errors) or 'Enter and confirm a valid password.',
+        }, status=400)
+
+    form.save()
+    if target_user.pk == request.user.pk:
+        update_session_auth_hash(request, target_user)
+
+    log_audit(
+        request.user,
+        'User Management',
+        f"Password reset for account {target_user.username}",
+        request=request,
+    )
+    return JsonResponse({'status': 'success', 'message': 'Password reset successfully.'})
 
 @login_required
 @csrf_protect
@@ -3929,7 +3983,13 @@ def add_user(request):
     
     username = request.POST.get('username')
     password = request.POST.get('password')
+    confirm_password = request.POST.get('confirm_password', '')
     role = request.POST.get('role')
+
+    if not password or password != confirm_password:
+        return HttpResponseBadRequest('Password and Confirm Password must match.')
+    if len(password) < 6:
+        return HttpResponseBadRequest('Password must be at least 6 characters.')
     
     # Super User ક્રિએટ ન થવો જોઈએ
     if role == UserProfile.RoleChoices.SUPER_ADMIN:
@@ -3963,16 +4023,18 @@ def update_profile_ajax(request):
     username = request.POST.get('username', '').strip()
     mobile = request.POST.get('mobile', '').strip()
 
-    curr_pass = request.POST.get('curr_password', '').strip()
-    new_pass = request.POST.get('new_password', '').strip()
-    confirm_pass = request.POST.get('confirm_password', '').strip()
+    curr_pass = request.POST.get('curr_password', '')
+    new_pass = request.POST.get('new_password', '')
+    confirm_pass = request.POST.get('confirm_password', '')
 
     if curr_pass or new_pass or confirm_pass:
         if not curr_pass or not user.check_password(curr_pass):
             return JsonResponse({'status': 'error', 'message': 'Current password is incorrect!'}, status=400)
 
-        if new_pass != confirm_pass or len(new_pass) < 6:
-            return JsonResponse({'status': 'error', 'message': 'Password validation failed.'}, status=400)
+        if new_pass != confirm_pass:
+            return JsonResponse({'status': 'error', 'message': 'The new passwords do not match.'}, status=400)
+        if len(new_pass) < 6:
+            return JsonResponse({'status': 'error', 'message': 'Password must be at least 6 characters.'}, status=400)
 
         user.set_password(new_pass)
         user.save()
@@ -4071,8 +4133,8 @@ def save_user_ajax(request):
 
     username = request.POST.get('username', '').strip()
     fullname = request.POST.get('fullname', '').strip()
-    password = request.POST.get('password', '').strip()
-    confirm_password = request.POST.get('confirm_password', '').strip()
+    password = request.POST.get('password', '')
+    confirm_password = request.POST.get('confirm_password', '')
     status_val = request.POST.get('status', 'Active').strip()
 
     if not username or not fullname or not password:
@@ -4080,6 +4142,8 @@ def save_user_ajax(request):
 
     if password != confirm_password:
         return JsonResponse({'status': 'error', 'message': 'Password and Confirm Password must match.'}, status=400)
+    if len(password) < 6:
+        return JsonResponse({'status': 'error', 'message': 'Password must be at least 6 characters.'}, status=400)
 
     if User.objects.filter(username=username).exists():
         return JsonResponse({'status': 'error', 'message': 'Username already exists.'}, status=400)
